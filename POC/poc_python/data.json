@@ -1,0 +1,5 @@
+[
+  {"jour": "Lundi", "source_A": 22, "source_B": 25, "reelle": 21},
+  {"jour": "Mardi", "source_A": 20, "source_B": 26, "reelle": 19},
+  {"jour": "Mercredi", "source_A": 23, "source_B": 23, "reelle": 23}
+]
