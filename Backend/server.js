@@ -26,5 +26,5 @@ app.get('/search/:nom', async (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`🚀 Serveur prêt sur http://localhost:${port}`);
+  console.log(`Serveur prêt sur http://localhost:${port}`);
 });

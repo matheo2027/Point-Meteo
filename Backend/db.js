@@ -17,7 +17,7 @@ const getOrCreateVille = async (nom, lat, lon) => {
     const res = await pool.query('SELECT id FROM villes WHERE nom = $1', [nom]);
     
     if (res.rows.length > 0) {
-      console.log(`📍 Ville trouvée en base : ${nom}`);
+      console.log(`Ville trouvée en base : ${nom}`);
       return res.rows[0].id;
     } else {
       // 2. Si elle n'existe pas, on l'insère
@@ -29,7 +29,7 @@ const getOrCreateVille = async (nom, lat, lon) => {
       return insertRes.rows[0].id;
     }
   } catch (err) {
-    console.error('❌ Erreur getOrCreateVille :', err);
+    console.error('Erreur getOrCreateVille :', err);
     throw err;
   }
 };

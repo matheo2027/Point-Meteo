@@ -18,6 +18,7 @@ Backend/*.log
 __pycache__/
 *.py[cod]
 .venv/
+Comparaison_python/.env
 
 # --- OS & IDE ---
 .DS_Store

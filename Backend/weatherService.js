@@ -16,7 +16,7 @@ const fetchAndStoreForecast = async (villeId, lat, lon) => {
         [villeId, 'Open-Meteo', tempsOM[i], datesOM[i], 'prevision']
       );
     }
-    console.log("✅ 5 jours archivés pour Open-Meteo");
+    console.log("5 jours archivés pour Open-Meteo");
   } catch (err) { console.error("Erreur Open-Meteo:", err.message); }
 
   // --- SOURCE 2 : WEATHERAPI ---
@@ -34,7 +34,7 @@ const fetchAndStoreForecast = async (villeId, lat, lon) => {
         [villeId, 'WeatherAPI', forecastDays[i].day.maxtemp_c, forecastDays[i].date, 'prevision']
       );
     }
-    console.log("✅ 5 jours archivés pour WeatherAPI");
+    console.log("5 jours archivés pour WeatherAPI");
   } catch (err) { console.error("Erreur WeatherAPI:", err.message); }
 
   
@@ -63,10 +63,10 @@ const fetchAndStoreRealData = async (villeId, lat, lon) => {
          VALUES ($1, $2, $3, $4, $5)`,
         [villeId, 'REALITE', tempReelle, dateHier, 'observation']
       );
-      console.log(`🎯 Réalité enregistrée pour hier (${dateHier}) : ${tempReelle}°C`);
+      console.log(`Réalité enregistrée pour hier (${dateHier}) : ${tempReelle}°C`);
     }
   } catch (error) {
-    console.error("❌ Erreur lors de la récupération du réel :", error.message);
+    console.error("Erreur lors de la récupération du réel :", error.message);
   }
 };
 
