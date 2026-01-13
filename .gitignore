@@ -1,0 +1,26 @@
+# --- NODE.JS (Backend) ---
+# Ne jamais push les bibliothèques téléchargées
+Backend/node_modules/
+# Ne jamais push tes accès à la base de données !
+Backend/.env
+# Logs
+Backend/*.log
+
+# --- FLUTTER (Mobile) ---
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+
+# --- PYTHON ---
+__pycache__/
+*.py[cod]
+.venv/
+
+# --- OS & IDE ---
+.DS_Store
+.idea/
+.vscode/
+*.swp
