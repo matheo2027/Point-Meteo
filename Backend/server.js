@@ -1,6 +1,6 @@
 const express = require('express');
 const { getOrCreateVille, pool } = require('./db');
-const { fetchAndStoreForecast } = require('./weatherService');
+const { fetchAndStoreForecast, fetchAndStoreRealData } = require('./weatherService');
 const app = express();
 const port = 3000;
 
@@ -8,26 +8,20 @@ app.use(express.json());
 
 app.get('/search/:nom', async (req, res) => {
   const nomVille = req.params.nom;
-  
-  // Simulation de coordonnées (Paris par défaut pour le test)
-  const lat_test = 48.85;
+
+  const lat_test = 48.85; // Paris par défaut
   const lon_test = 2.35;
 
   try {
-    // 1. On récupère ou crée la ville dans la table 'villes'
     const villeId = await getOrCreateVille(nomVille, lat_test, lon_test);
 
-    // 2. On déclenche la récupération des prévisions pour les 5 prochains jours
-    // On le fait même si la ville existe déjà pour accumuler nos "preuves" quotidiennes
-    await fetchAndStoreForecast(villeId, lat_test, lon_test);
+    // On lance les deux en parallèle
+    await fetchAndStoreForecast(villeId, lat_test, lon_test); // Prévisions (OM + WAPI)
+    await fetchAndStoreRealData(villeId, lat_test, lon_test);  // Réalité (Hier)
 
-    res.json({ 
-      message: "Recherche traitée et prévisions archivées", 
-      ville: nomVille, 
-      id_en_base: villeId 
-    });
+    res.json({ message: "Données mises à jour (Futur + Passé)", ville: nomVille, id: villeId });
   } catch (err) {
-    res.status(500).json({ error: "Erreur serveur lors de la recherche" });
+    res.status(500).json({ error: "Erreur serveur" });
   }
 });
 

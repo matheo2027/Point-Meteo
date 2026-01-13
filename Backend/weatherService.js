@@ -36,6 +36,38 @@ const fetchAndStoreForecast = async (villeId, lat, lon) => {
     }
     console.log("✅ 5 jours archivés pour WeatherAPI");
   } catch (err) { console.error("Erreur WeatherAPI:", err.message); }
+
+  
 };
 
-module.exports = { fetchAndStoreForecast };
+// Fonction pour récupérer la température réelle d'hier
+const fetchAndStoreRealData = async (villeId, lat, lon) => {
+  try {
+    const hier = new Date();
+    hier.setDate(hier.getDate() - 1);
+    const dateHier = hier.toISOString().split('T')[0];
+
+    const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${dateHier}&end_date=${dateHier}&daily=temperature_2m_max&timezone=auto`;
+    const response = await axios.get(url);
+    
+    const tempReelle = response.data.daily.temperature_2m_max[0];
+
+    const check = await pool.query(
+      "SELECT id FROM donnees_meteo WHERE ville_id = $1 AND date_concernee = $2 AND type = 'observation'",
+      [villeId, dateHier]
+    );
+
+    if (check.rows.length === 0) {
+      await pool.query(
+        `INSERT INTO donnees_meteo (ville_id, source, temp, date_concernee, type) 
+         VALUES ($1, $2, $3, $4, $5)`,
+        [villeId, 'REALITE', tempReelle, dateHier, 'observation']
+      );
+      console.log(`🎯 Réalité enregistrée pour hier (${dateHier}) : ${tempReelle}°C`);
+    }
+  } catch (error) {
+    console.error("❌ Erreur lors de la récupération du réel :", error.message);
+  }
+};
+
+module.exports = { fetchAndStoreForecast, fetchAndStoreRealData };
