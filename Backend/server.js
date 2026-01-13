@@ -1,4 +1,5 @@
 const express = require('express');
+const axios = require('axios');
 const { getOrCreateVille, pool } = require('./db');
 const { fetchAndStoreForecast, fetchAndStoreRealData } = require('./weatherService');
 const app = express();
@@ -6,26 +7,41 @@ const port = 3000;
 
 app.use(express.json());
 
-// ROUTE 1 : Recherche et Collecte (Point d'entrée)
+// ROUTE 1 : Recherche et Collecte (Point d'entrée dynamique)
 app.get('/search/:nom', async (req, res) => {
   const nomVille = req.params.nom;
-  const lat_test = 48.85; // Paris par défaut
-  const lon_test = 2.35;
 
   try {
-    const villeId = await getOrCreateVille(nomVille, lat_test, lon_test);
+    // 1. Appel au service de géocodage pour trouver les coordonnées réelles
+    const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(nomVille)}&count=1&language=fr&format=json`;
+    const geoRes = await axios.get(geoUrl);
 
-    // Lance la collecte des prévisions et de la réalité d'hier
-    await fetchAndStoreForecast(villeId, lat_test, lon_test); 
-    await fetchAndStoreRealData(villeId, lat_test, lon_test);  
+    // Vérification si la ville existe
+    if (!geoRes.data.results || geoRes.data.results.length === 0) {
+      return res.status(404).json({ error: "Ville non trouvée" });
+    }
+
+    // Extraction des vraies coordonnées
+    const { latitude, longitude, name } = geoRes.data.results[0];
+
+    // 2. Récupération ou création de la ville avec ses vraies coordonnées
+    // Utilise ta fonction getOrCreateVille ou pool.query directement
+    const villeId = await getOrCreateVille(name, latitude, longitude);
+
+    // 3. Collecte des données météo basées sur les VRAIES coordonnées
+    await fetchAndStoreForecast(villeId, latitude, longitude); 
+    await fetchAndStoreRealData(villeId, latitude, longitude);  
 
     res.json({ 
-      message: "Données mises à jour (Futur + Passé)", 
-      ville: nomVille, 
-      id: villeId 
+      message: "Données mises à jour avec les coordonnées réelles", 
+      ville: name, 
+      id: villeId,
+      coords: { latitude, longitude }
     });
+
   } catch (err) {
-    res.status(500).json({ error: "Erreur serveur" });
+    console.error("Erreur Search:", err.message);
+    res.status(500).json({ error: "Erreur serveur lors de la recherche" });
   }
 });
 

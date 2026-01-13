@@ -10,13 +10,16 @@ const fetchAndStoreForecast = async (villeId, lat, lon) => {
     const tempsOM = resOM.data.daily.temperature_2m_max;
 
     for (let i = 0; i < 5; i++) {
+      // Utilisation de ON CONFLICT pour éviter les doublons
       await pool.query(
         `INSERT INTO donnees_meteo (ville_id, source, temp, date_concernee, type) 
-         VALUES ($1, $2, $3, $4, $5)`,
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT ON CONSTRAINT unique_prevision 
+         DO UPDATE SET temp = EXCLUDED.temp`,
         [villeId, 'Open-Meteo', tempsOM[i], datesOM[i], 'prevision']
       );
     }
-    console.log("5 jours archivés pour Open-Meteo");
+    console.log("Données Open-Meteo mises à jour (sans doublons)");
   } catch (err) { console.error("Erreur Open-Meteo:", err.message); }
 
   // --- SOURCE 2 : WEATHERAPI ---
@@ -28,16 +31,17 @@ const fetchAndStoreForecast = async (villeId, lat, lon) => {
     const forecastDays = resWAPI.data.forecast.forecastday;
 
     for (let i = 0; i < forecastDays.length; i++) {
+      // Utilisation de ON CONFLICT pour éviter les doublons
       await pool.query(
         `INSERT INTO donnees_meteo (ville_id, source, temp, date_concernee, type) 
-         VALUES ($1, $2, $3, $4, $5)`,
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT ON CONSTRAINT unique_prevision 
+         DO UPDATE SET temp = EXCLUDED.temp`,
         [villeId, 'WeatherAPI', forecastDays[i].day.maxtemp_c, forecastDays[i].date, 'prevision']
       );
     }
-    console.log("5 jours archivés pour WeatherAPI");
+    console.log("Données WeatherAPI mises à jour (sans doublons)");
   } catch (err) { console.error("Erreur WeatherAPI:", err.message); }
-
-  
 };
 
 // Fonction pour récupérer la température réelle d'hier
@@ -52,19 +56,16 @@ const fetchAndStoreRealData = async (villeId, lat, lon) => {
     
     const tempReelle = response.data.daily.temperature_2m_max[0];
 
-    const check = await pool.query(
-      "SELECT id FROM donnees_meteo WHERE ville_id = $1 AND date_concernee = $2 AND type = 'observation'",
-      [villeId, dateHier]
+    // ON CONFLICT fonctionne aussi pour la réalité (Source 'REALITE')
+    await pool.query(
+      `INSERT INTO donnees_meteo (ville_id, source, temp, date_concernee, type) 
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT ON CONSTRAINT unique_prevision 
+       DO UPDATE SET temp = EXCLUDED.temp`,
+      [villeId, 'REALITE', tempReelle, dateHier, 'observation']
     );
-
-    if (check.rows.length === 0) {
-      await pool.query(
-        `INSERT INTO donnees_meteo (ville_id, source, temp, date_concernee, type) 
-         VALUES ($1, $2, $3, $4, $5)`,
-        [villeId, 'REALITE', tempReelle, dateHier, 'observation']
-      );
-      console.log(`Réalité enregistrée pour hier (${dateHier}) : ${tempReelle}°C`);
-    }
+    console.log(`Réalité vérifiée pour hier (${dateHier}) : ${tempReelle}°C`);
+    
   } catch (error) {
     console.error("Erreur lors de la récupération du réel :", error.message);
   }
