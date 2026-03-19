@@ -1,19 +1,50 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/home_screen.dart';
 import 'screens/podium_screen.dart';
 import 'screens/settings_screen.dart';
 
-void main() => runApp(const PointMeteoApp());
+final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.light);
+final ValueNotifier<bool> isCelsiusNotifier = ValueNotifier(true);
+final ValueNotifier<bool> is24HourNotifier = ValueNotifier(true);
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();
+
+  final isDark = prefs.getBool('isDarkMode') ?? false;
+  themeNotifier.value = isDark ? ThemeMode.dark : ThemeMode.light;
+
+  final isCelsius = prefs.getBool('isCelsius') ?? true;
+  isCelsiusNotifier.value = isCelsius;
+
+  final is24Hour = prefs.getBool('is24Hour') ?? true;
+  is24HourNotifier.value = is24Hour;
+
+  runApp(const PointMeteoApp());
+}
 
 class PointMeteoApp extends StatelessWidget {
   const PointMeteoApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(primarySwatch: Colors.blue, useMaterial3: true),
-      home: const MainNavigation(),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: themeNotifier,
+      builder: (_, ThemeMode currentMode, __) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'Point Météo',
+          themeMode: currentMode,
+          theme: ThemeData(
+            primarySwatch: Colors.blue,
+            useMaterial3: true,
+            brightness: Brightness.light,
+          ),
+          darkTheme: ThemeData(useMaterial3: true, brightness: Brightness.dark),
+          home: const MainNavigation(),
+        );
+      },
     );
   }
 }
@@ -27,7 +58,6 @@ class MainNavigation extends StatefulWidget {
 class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
 
-  // On définit les pages une seule fois
   final List<Widget> _pages = [
     const HomeScreen(),
     const PodiumScreen(),
@@ -37,7 +67,6 @@ class _MainNavigationState extends State<MainNavigation> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // On remplace "body: _pages[_currentIndex]" par IndexedStack
       body: IndexedStack(index: _currentIndex, children: _pages),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
