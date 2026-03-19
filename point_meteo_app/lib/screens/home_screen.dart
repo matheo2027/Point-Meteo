@@ -222,9 +222,12 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  IconData _getWeatherIcon(int weatherCode) {
-    if (weatherCode == 0) return Icons.wb_sunny;
-    if (weatherCode == 1 || weatherCode == 2) return Icons.cloud_queue;
+  // --- MODIFIÉ : Ajout du paramètre isNight ---
+  IconData _getWeatherIcon(int weatherCode, {bool isNight = false}) {
+    if (weatherCode == 0)
+      return isNight ? Icons.nightlight_round : Icons.wb_sunny;
+    if (weatherCode == 1 || weatherCode == 2)
+      return isNight ? Icons.nights_stay : Icons.cloud_queue;
     if (weatherCode == 3) return Icons.cloud;
     if (weatherCode == 45 || weatherCode == 48) return Icons.foggy;
     if (weatherCode >= 51 && weatherCode <= 67) return Icons.water_drop;
@@ -234,8 +237,12 @@ class _HomeScreenState extends State<HomeScreen>
     return Icons.wb_cloudy;
   }
 
-  Color _getWeatherIconColor(int weatherCode) {
-    if (weatherCode == 0) return Colors.orangeAccent;
+  // --- MODIFIÉ : Ajout du paramètre isNight pour les couleurs ---
+  Color _getWeatherIconColor(int weatherCode, {bool isNight = false}) {
+    if (weatherCode == 0)
+      return isNight ? Colors.indigo.shade200 : Colors.orangeAccent;
+    if (weatherCode == 1 || weatherCode == 2)
+      return isNight ? Colors.indigo.shade200 : Colors.white;
     if (weatherCode >= 51 && weatherCode <= 67) return Colors.lightBlueAccent;
     if (weatherCode >= 71 && weatherCode <= 77) return Colors.white;
     if (weatherCode >= 95 && weatherCode <= 99) return Colors.yellowAccent;
@@ -310,6 +317,9 @@ class _HomeScreenState extends State<HomeScreen>
       weatherCode =
           _bestWeather!['weathercode'] ?? _bestWeather!['code_meteo'] ?? 0;
     }
+
+    int currentHour = DateTime.now().hour;
+    bool isCurrentlyNight = currentHour >= 20 || currentHour <= 5;
 
     return ValueListenableBuilder<bool>(
       valueListenable: is24HourNotifier,
@@ -433,11 +443,16 @@ class _HomeScreenState extends State<HomeScreen>
                                 child: Column(
                                   children: [
                                     const SizedBox(height: 10),
+                                    // --- MODIFIÉ : Application de isNight pour l'icône principale ---
                                     Icon(
-                                          _getWeatherIcon(weatherCode),
+                                          _getWeatherIcon(
+                                            weatherCode,
+                                            isNight: isCurrentlyNight,
+                                          ),
                                           size: 100,
                                           color: _getWeatherIconColor(
                                             weatherCode,
+                                            isNight: isCurrentlyNight,
                                           ),
                                         )
                                         .animate()
@@ -527,6 +542,20 @@ class _HomeScreenState extends State<HomeScreen>
                                                 _hourlyForecast[index];
                                             final code =
                                                 hourData['code_meteo'] ?? 0;
+
+                                            // --- NOUVEAU : On vérifie si CETTE heure est la nuit ---
+                                            int h = 12;
+                                            try {
+                                              h = int.parse(
+                                                hourData['time'].substring(
+                                                  0,
+                                                  2,
+                                                ),
+                                              );
+                                            } catch (_) {}
+                                            bool isNightHour =
+                                                h >= 20 || h <= 5;
+
                                             return Container(
                                                   width: 80,
                                                   margin:
@@ -561,11 +590,17 @@ class _HomeScreenState extends State<HomeScreen>
                                                       const SizedBox(
                                                         height: 10,
                                                       ),
+                                                      // --- MODIFIÉ : Application de isNightHour ---
                                                       Icon(
-                                                        _getWeatherIcon(code),
+                                                        _getWeatherIcon(
+                                                          code,
+                                                          isNight: isNightHour,
+                                                        ),
                                                         color:
                                                             _getWeatherIconColor(
                                                               code,
+                                                              isNight:
+                                                                  isNightHour,
                                                             ),
                                                         size: 30,
                                                       ),
@@ -659,11 +694,16 @@ class _HomeScreenState extends State<HomeScreen>
                                                               ),
                                                         ),
                                                       ),
+                                                      // --- MODIFIÉ : On force les jours en "soleil" (isNight: false) ---
                                                       Icon(
-                                                        _getWeatherIcon(dCode),
+                                                        _getWeatherIcon(
+                                                          dCode,
+                                                          isNight: false,
+                                                        ),
                                                         color:
                                                             _getWeatherIconColor(
                                                               dCode,
+                                                              isNight: false,
                                                             ),
                                                         size: 28,
                                                       ),
