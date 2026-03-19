@@ -37,8 +37,7 @@ class _HomeScreenState extends State<HomeScreen>
         throw Exception("Permissions bloquées définitivement");
       }
 
-      // 2. Récupérer la position actuelle avec la nouvelle méthode
-      // On ajoute un timeout de 5 secondes pour ne pas bloquer l'UI indéfiniment
+      // 2. Récupérer la position actuelle
       Position position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.best,
@@ -107,6 +106,7 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         );
 
+        print("MÉTÉO REÇUE POUR L'AFFICHAGE : $_bestWeather");
         _isLoading = false;
       });
     } catch (e) {
@@ -115,9 +115,40 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  // Fonction qui traduit le code WMO en icône Flutter
+  IconData _getWeatherIcon(int weatherCode) {
+    if (weatherCode == 0) return Icons.wb_sunny;
+    if (weatherCode == 1 || weatherCode == 2) return Icons.cloud_queue;
+    if (weatherCode == 3) return Icons.cloud;
+    if (weatherCode == 45 || weatherCode == 48) return Icons.foggy;
+    if (weatherCode >= 51 && weatherCode <= 67) return Icons.water_drop;
+    if (weatherCode >= 71 && weatherCode <= 77) return Icons.ac_unit;
+    if (weatherCode >= 80 && weatherCode <= 82) return Icons.umbrella;
+    if (weatherCode >= 95 && weatherCode <= 99) return Icons.flash_on;
+    return Icons.wb_cloudy; // Par défaut
+  }
+
+  // Fonction pour donner une couleur sympa à l'icône selon la météo
+  Color _getWeatherIconColor(int weatherCode) {
+    if (weatherCode == 0) return Colors.orangeAccent; // Soleil
+    if (weatherCode >= 51 && weatherCode <= 67)
+      return Colors.lightBlueAccent; // Pluie
+    if (weatherCode >= 71 && weatherCode <= 77) return Colors.white; // Neige
+    if (weatherCode >= 95 && weatherCode <= 99)
+      return Colors.yellowAccent; // Orage
+    return Colors.white70; // Nuages/Gris par défaut
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
+
+    // Extraction du code météo (On gère les deux noms possibles de la BDD pour éviter un crash)
+    int weatherCode = 0;
+    if (_bestWeather != null) {
+      weatherCode =
+          _bestWeather!['weathercode'] ?? _bestWeather!['code_meteo'] ?? 0;
+    }
 
     return Scaffold(
       body: Container(
@@ -164,10 +195,11 @@ class _HomeScreenState extends State<HomeScreen>
                 if (_isLoading)
                   const CircularProgressIndicator(color: Colors.white),
                 if (_bestWeather != null) ...[
-                  const Icon(
-                    Icons.wb_sunny_rounded,
+                  // --- MODIFICATION ICI : L'ICÔNE DYNAMIQUE ---
+                  Icon(
+                    _getWeatherIcon(weatherCode),
                     size: 80,
-                    color: Colors.orangeAccent,
+                    color: _getWeatherIconColor(weatherCode),
                   ),
                   const SizedBox(height: 20),
                   Text(
