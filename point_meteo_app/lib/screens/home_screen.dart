@@ -138,7 +138,7 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  void _rechercherLeMeilleur() async {
+  Future<void> _rechercherLeMeilleur() async {
     if (_cityController.text.isEmpty) return;
     setState(() => _isLoading = true);
 
@@ -240,6 +240,63 @@ class _HomeScreenState extends State<HomeScreen>
     if (weatherCode >= 71 && weatherCode <= 77) return Colors.white;
     if (weatherCode >= 95 && weatherCode <= 99) return Colors.yellowAccent;
     return Colors.white70;
+  }
+
+  void _showHowItWorksDialog() {
+    bool isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: isDark ? Colors.grey[900] : Colors.white,
+          title: const Row(
+            children: [
+              Icon(Icons.lightbulb_outline, color: Colors.amber),
+              SizedBox(width: 10),
+              Text("Le concept & Sources", style: TextStyle(fontSize: 18)),
+            ],
+          ),
+          content: const SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Point Météo croise les données pour vous offrir la meilleure prévision.",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 15),
+                Text("1️⃣ L'application interroge 3 sources :"),
+                Text(
+                  "   • Open-Meteo\n   • WeatherAPI\n   • Meteo-Concept",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 10),
+                Text(
+                  "2️⃣ Notre algorithme Python compare leurs prévisions passées avec la réalité.",
+                ),
+                SizedBox(height: 10),
+                Text(
+                  "3️⃣ Vous voyez uniquement les données du fournisseur le plus fiable pour la ville demandée !",
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                "J'ai compris",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blueAccent,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -361,371 +418,506 @@ class _HomeScreenState extends State<HomeScreen>
 
                         if (_bestWeather != null && !_isLoading)
                           Expanded(
-                            child: SingleChildScrollView(
-                              physics: const BouncingScrollPhysics(),
-                              child: Column(
-                                children: [
-                                  const SizedBox(height: 10),
-                                  Icon(
-                                        _getWeatherIcon(weatherCode),
-                                        size: 100,
-                                        color: _getWeatherIconColor(
-                                          weatherCode,
-                                        ),
-                                      )
-                                      .animate()
-                                      .fadeIn(duration: 600.ms)
-                                      .scale(curve: Curves.easeOutBack),
-
-                                  Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Text(
-                                            _cityController.text.toUpperCase(),
-                                            style: const TextStyle(
-                                              fontSize: 24,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                          IconButton(
-                                            icon: Icon(
-                                              _isFavorite
-                                                  ? Icons.favorite
-                                                  : Icons.favorite_border,
-                                              color: _isFavorite
-                                                  ? Colors.redAccent
-                                                  : Colors.white,
-                                            ),
-                                            onPressed: _toggleFavorite,
-                                          ),
-                                        ],
-                                      )
-                                      .animate()
-                                      .fadeIn(delay: 200.ms)
-                                      .slideY(
-                                        begin: 0.2,
-                                        curve: Curves.easeOut,
-                                      ),
-
-                                  Text(
-                                        "${_convertTemp(_bestWeather!['temp'], isCelsius)}°$unit",
-                                        style: const TextStyle(
-                                          fontSize: 70,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                        ),
-                                      )
-                                      .animate()
-                                      .fadeIn(delay: 300.ms)
-                                      .slideY(
-                                        begin: 0.2,
-                                        curve: Curves.easeOut,
-                                      ),
-
-                                  Text(
-                                    _bestSourceName!.toUpperCase(),
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      color: Colors.white70,
-                                      letterSpacing: 2,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ).animate().fadeIn(delay: 400.ms),
-
-                                  const SizedBox(height: 30),
-
-                                  if (_hourlyForecast.isNotEmpty) ...[
-                                    const Align(
-                                      alignment: Alignment.centerLeft,
-                                      child: Text(
-                                        "Heure par Heure",
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ).animate().fadeIn(delay: 500.ms),
+                            child: RefreshIndicator(
+                              color: Colors.blueAccent,
+                              backgroundColor: isDark
+                                  ? Colors.grey[800]
+                                  : Colors.white,
+                              onRefresh: () async {
+                                await _rechercherLeMeilleur();
+                              },
+                              child: SingleChildScrollView(
+                                physics: const AlwaysScrollableScrollPhysics(
+                                  parent: BouncingScrollPhysics(),
+                                ),
+                                child: Column(
+                                  children: [
                                     const SizedBox(height: 10),
-                                    SizedBox(
-                                      height: 130,
-                                      child: ListView.builder(
-                                        scrollDirection: Axis.horizontal,
-                                        itemCount: _hourlyForecast.length,
-                                        itemBuilder: (context, index) {
-                                          final hourData =
-                                              _hourlyForecast[index];
-                                          final code =
-                                              hourData['code_meteo'] ?? 0;
-                                          return Container(
-                                                width: 80,
-                                                margin:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 5,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.white
-                                                      .withValues(alpha: 0.15),
-                                                  borderRadius:
-                                                      BorderRadius.circular(20),
-                                                ),
-                                                child: Column(
-                                                  mainAxisAlignment:
-                                                      MainAxisAlignment.center,
-                                                  children: [
-                                                    // --- APPLICATION DE LA NOUVELLE HEURE ICI ---
-                                                    Text(
-                                                      formatTime(
-                                                        hourData['time'],
-                                                      ),
-                                                      style: const TextStyle(
-                                                        color: Colors.white,
-                                                        fontWeight:
-                                                            FontWeight.w500,
-                                                      ),
-                                                    ),
-                                                    const SizedBox(height: 10),
-                                                    Icon(
-                                                      _getWeatherIcon(code),
-                                                      color:
-                                                          _getWeatherIconColor(
-                                                            code,
-                                                          ),
-                                                      size: 30,
-                                                    ),
-                                                    const SizedBox(height: 10),
-                                                    Text(
-                                                      "${_convertTemp(hourData['temp'], isCelsius)}°$unit",
-                                                      style: const TextStyle(
-                                                        color: Colors.white,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                        fontSize: 16,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              )
-                                              .animate()
-                                              .fadeIn(
-                                                delay: (500 + (index * 50)).ms,
-                                              )
-                                              .slideX(
-                                                begin: 0.5,
-                                                curve: Curves.easeOut,
-                                              );
-                                        },
-                                      ),
-                                    ),
-                                  ],
+                                    Icon(
+                                          _getWeatherIcon(weatherCode),
+                                          size: 100,
+                                          color: _getWeatherIconColor(
+                                            weatherCode,
+                                          ),
+                                        )
+                                        .animate()
+                                        .fadeIn(duration: 600.ms)
+                                        .scale(curve: Curves.easeOutBack),
 
-                                  const SizedBox(height: 30),
+                                    Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Text(
+                                              _cityController.text
+                                                  .toUpperCase(),
+                                              style: const TextStyle(
+                                                fontSize: 24,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                            IconButton(
+                                              icon: Icon(
+                                                _isFavorite
+                                                    ? Icons.favorite
+                                                    : Icons.favorite_border,
+                                                color: _isFavorite
+                                                    ? Colors.redAccent
+                                                    : Colors.white,
+                                              ),
+                                              onPressed: _toggleFavorite,
+                                            ),
+                                          ],
+                                        )
+                                        .animate()
+                                        .fadeIn(delay: 200.ms)
+                                        .slideY(
+                                          begin: 0.2,
+                                          curve: Curves.easeOut,
+                                        ),
 
-                                  if (_dailyForecast.isNotEmpty) ...[
-                                    const Align(
-                                      alignment: Alignment.centerLeft,
-                                      child: Text(
-                                        "Prochains jours",
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
+                                    Text(
+                                          "${_convertTemp(_bestWeather!['temp'], isCelsius)}°$unit",
+                                          style: const TextStyle(
+                                            fontSize: 70,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                        .animate()
+                                        .fadeIn(delay: 300.ms)
+                                        .slideY(
+                                          begin: 0.2,
+                                          curve: Curves.easeOut,
                                         ),
+
+                                    Text(
+                                      _bestSourceName!.toUpperCase(),
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        color: Colors.white70,
+                                        letterSpacing: 2,
+                                        fontWeight: FontWeight.bold,
                                       ),
-                                    ).animate().fadeIn(delay: 700.ms),
-                                    const SizedBox(height: 10),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 15,
-                                        vertical: 10,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white.withValues(
-                                          alpha: 0.15,
+                                    ).animate().fadeIn(delay: 400.ms),
+
+                                    const SizedBox(height: 30),
+
+                                    if (_hourlyForecast.isNotEmpty) ...[
+                                      const Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: Text(
+                                          "Heure par Heure",
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                          ),
                                         ),
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: Column(
-                                        children: _dailyForecast
-                                            .map((dayData) {
-                                              int dCode =
-                                                  dayData['code_meteo'] ?? 0;
-                                              return Padding(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      vertical: 12.0,
-                                                    ),
-                                                child: Row(
-                                                  mainAxisAlignment:
-                                                      MainAxisAlignment
-                                                          .spaceBetween,
-                                                  children: [
-                                                    SizedBox(
-                                                      width: 80,
-                                                      child: Text(
-                                                        _formatDate(
-                                                          dayData['date_concernee']
-                                                              .toString(),
+                                      ).animate().fadeIn(delay: 500.ms),
+                                      const SizedBox(height: 10),
+                                      SizedBox(
+                                        height: 130,
+                                        child: ListView.builder(
+                                          scrollDirection: Axis.horizontal,
+                                          itemCount: _hourlyForecast.length,
+                                          itemBuilder: (context, index) {
+                                            final hourData =
+                                                _hourlyForecast[index];
+                                            final code =
+                                                hourData['code_meteo'] ?? 0;
+                                            return Container(
+                                                  width: 80,
+                                                  margin:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 5,
+                                                      ),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.white
+                                                        .withValues(
+                                                          alpha: 0.15,
+                                                        ),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          20,
+                                                        ),
+                                                  ),
+                                                  child: Column(
+                                                    mainAxisAlignment:
+                                                        MainAxisAlignment
+                                                            .center,
+                                                    children: [
+                                                      Text(
+                                                        formatTime(
+                                                          hourData['time'],
                                                         ),
                                                         style: const TextStyle(
                                                           color: Colors.white,
-                                                          fontSize: 16,
                                                           fontWeight:
                                                               FontWeight.w500,
                                                         ),
                                                       ),
-                                                    ),
-                                                    Icon(
-                                                      _getWeatherIcon(dCode),
-                                                      color:
-                                                          _getWeatherIconColor(
-                                                            dCode,
-                                                          ),
-                                                      size: 28,
-                                                    ),
-                                                    SizedBox(
-                                                      width: 50,
-                                                      child: Text(
-                                                        "${_convertTemp(dayData['temp'], isCelsius)}°$unit",
-                                                        textAlign:
-                                                            TextAlign.right,
+                                                      const SizedBox(
+                                                        height: 10,
+                                                      ),
+                                                      Icon(
+                                                        _getWeatherIcon(code),
+                                                        color:
+                                                            _getWeatherIconColor(
+                                                              code,
+                                                            ),
+                                                        size: 30,
+                                                      ),
+                                                      const SizedBox(
+                                                        height: 10,
+                                                      ),
+                                                      Text(
+                                                        "${_convertTemp(hourData['temp'], isCelsius)}°$unit",
                                                         style: const TextStyle(
                                                           color: Colors.white,
-                                                          fontSize: 16,
                                                           fontWeight:
                                                               FontWeight.bold,
+                                                          fontSize: 16,
                                                         ),
                                                       ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              );
-                                            })
-                                            .toList()
-                                            .animate(interval: 100.ms)
-                                            .fadeIn(delay: 800.ms)
-                                            .slideY(
-                                              begin: 0.2,
-                                              curve: Curves.easeOut,
-                                            ),
-                                      ),
-                                    ),
-                                  ],
-                                  const SizedBox(height: 20),
-                                ],
-                              ),
-                            ),
-                          )
-                        else if (!_isLoading)
-                          Expanded(
-                            child: _favoriteCities.isEmpty
-                                ? Center(
-                                    child: Text(
-                                      "Entrez une ville pour commencer\nou utilisez le GPS",
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: isDark
-                                            ? Colors.white70
-                                            : Colors.black54,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                  ).animate().fadeIn()
-                                : Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 15,
-                                        ),
-                                        child: Text(
-                                          "Vos villes favorites",
-                                          style: TextStyle(
-                                            color: isDark
-                                                ? Colors.white
-                                                : Colors.black87,
-                                            fontSize: 20,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ).animate().fadeIn(),
-                                      Expanded(
-                                        child: ListView.builder(
-                                          physics:
-                                              const BouncingScrollPhysics(),
-                                          itemCount: _favoriteCities.length,
-                                          itemBuilder: (context, index) {
-                                            final city = _favoriteCities[index];
-                                            return Card(
-                                                  color: isDark
-                                                      ? Colors.grey.shade800
-                                                      : Colors.white,
-                                                  elevation: 2,
-                                                  margin: const EdgeInsets.only(
-                                                    bottom: 12,
-                                                  ),
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          15,
-                                                        ),
-                                                  ),
-                                                  child: ListTile(
-                                                    contentPadding:
-                                                        const EdgeInsets.symmetric(
-                                                          horizontal: 20,
-                                                          vertical: 5,
-                                                        ),
-                                                    leading: const Icon(
-                                                      Icons.star,
-                                                      color:
-                                                          Colors.orangeAccent,
-                                                      size: 30,
-                                                    ),
-                                                    title: Text(
-                                                      city.toUpperCase(),
-                                                      style: TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                        fontSize: 16,
-                                                        color: isDark
-                                                            ? Colors.white
-                                                            : Colors.black,
-                                                      ),
-                                                    ),
-                                                    trailing: IconButton(
-                                                      icon: Icon(
-                                                        Icons.delete_outline,
-                                                        color: isDark
-                                                            ? Colors.white54
-                                                            : Colors.grey,
-                                                      ),
-                                                      onPressed: () =>
-                                                          _removeFavoriteFromList(
-                                                            city,
-                                                          ),
-                                                    ),
-                                                    onTap: () {
-                                                      _cityController.text =
-                                                          city;
-                                                      _rechercherLeMeilleur();
-                                                    },
+                                                    ],
                                                   ),
                                                 )
                                                 .animate()
-                                                .fadeIn(delay: (index * 100).ms)
+                                                .fadeIn(
+                                                  delay:
+                                                      (500 + (index * 50)).ms,
+                                                )
                                                 .slideX(
-                                                  begin: -0.2,
+                                                  begin: 0.5,
                                                   curve: Curves.easeOut,
                                                 );
                                           },
                                         ),
                                       ),
                                     ],
+
+                                    const SizedBox(height: 30),
+
+                                    if (_dailyForecast.isNotEmpty) ...[
+                                      const Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: Text(
+                                          "Prochains jours",
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ).animate().fadeIn(delay: 700.ms),
+                                      const SizedBox(height: 10),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 15,
+                                          vertical: 10,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.15,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
+                                        ),
+                                        child: Column(
+                                          children: _dailyForecast
+                                              .map((dayData) {
+                                                int dCode =
+                                                    dayData['code_meteo'] ?? 0;
+                                                return Padding(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        vertical: 12.0,
+                                                      ),
+                                                  child: Row(
+                                                    mainAxisAlignment:
+                                                        MainAxisAlignment
+                                                            .spaceBetween,
+                                                    children: [
+                                                      SizedBox(
+                                                        width: 80,
+                                                        child: Text(
+                                                          _formatDate(
+                                                            dayData['date_concernee']
+                                                                .toString(),
+                                                          ),
+                                                          style:
+                                                              const TextStyle(
+                                                                color: Colors
+                                                                    .white,
+                                                                fontSize: 16,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w500,
+                                                              ),
+                                                        ),
+                                                      ),
+                                                      Icon(
+                                                        _getWeatherIcon(dCode),
+                                                        color:
+                                                            _getWeatherIconColor(
+                                                              dCode,
+                                                            ),
+                                                        size: 28,
+                                                      ),
+                                                      SizedBox(
+                                                        width: 50,
+                                                        child: Text(
+                                                          "${_convertTemp(dayData['temp'], isCelsius)}°$unit",
+                                                          textAlign:
+                                                              TextAlign.right,
+                                                          style:
+                                                              const TextStyle(
+                                                                color: Colors
+                                                                    .white,
+                                                                fontSize: 16,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                              ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                );
+                                              })
+                                              .toList()
+                                              .animate(interval: 100.ms)
+                                              .fadeIn(delay: 800.ms)
+                                              .slideY(
+                                                begin: 0.2,
+                                                curve: Curves.easeOut,
+                                              ),
+                                        ),
+                                      ),
+                                    ],
+                                    const SizedBox(height: 20),
+
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        const Text(
+                                          "Source sélectionnée pour sa fiabilité",
+                                          style: TextStyle(
+                                            color: Colors.white60,
+                                            fontStyle: FontStyle.italic,
+                                          ),
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(
+                                            Icons.info_outline,
+                                            color: Colors.white70,
+                                            size: 20,
+                                          ),
+                                          onPressed: _showHowItWorksDialog,
+                                        ),
+                                      ],
+                                    ).animate().fadeIn(delay: 1000.ms),
+
+                                    const SizedBox(height: 20),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          )
+                        else if (!_isLoading)
+                          Expanded(
+                            child: Column(
+                              children: [
+                                Expanded(
+                                  child: RefreshIndicator(
+                                    color: Colors.blueAccent,
+                                    backgroundColor: isDark
+                                        ? Colors.grey[800]
+                                        : Colors.white,
+                                    onRefresh: () async {
+                                      await _loadFavorites();
+                                    },
+                                    child: _favoriteCities.isEmpty
+                                        ? ListView(
+                                            physics:
+                                                const AlwaysScrollableScrollPhysics(
+                                                  parent:
+                                                      BouncingScrollPhysics(),
+                                                ),
+                                            children: [
+                                              SizedBox(
+                                                height:
+                                                    MediaQuery.of(
+                                                      context,
+                                                    ).size.height *
+                                                    0.3,
+                                              ),
+                                              Center(
+                                                child: Text(
+                                                  "Entrez une ville pour commencer\nou utilisez le GPS",
+                                                  textAlign: TextAlign.center,
+                                                  style: TextStyle(
+                                                    color: isDark
+                                                        ? Colors.white70
+                                                        : Colors.black54,
+                                                    fontSize: 16,
+                                                  ),
+                                                ),
+                                              ).animate().fadeIn(),
+                                            ],
+                                          )
+                                        : Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Padding(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      vertical: 15,
+                                                    ),
+                                                child: Text(
+                                                  "Vos villes favorites",
+                                                  style: TextStyle(
+                                                    color: isDark
+                                                        ? Colors.white
+                                                        : Colors.black87,
+                                                    fontSize: 20,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ).animate().fadeIn(),
+                                              Expanded(
+                                                child: ListView.builder(
+                                                  physics:
+                                                      const AlwaysScrollableScrollPhysics(
+                                                        parent:
+                                                            BouncingScrollPhysics(),
+                                                      ),
+                                                  itemCount:
+                                                      _favoriteCities.length,
+                                                  itemBuilder: (context, index) {
+                                                    final city =
+                                                        _favoriteCities[index];
+                                                    return Card(
+                                                          color: isDark
+                                                              ? Colors
+                                                                    .grey
+                                                                    .shade800
+                                                              : Colors.white,
+                                                          elevation: 2,
+                                                          margin:
+                                                              const EdgeInsets.only(
+                                                                bottom: 12,
+                                                              ),
+                                                          shape: RoundedRectangleBorder(
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  15,
+                                                                ),
+                                                          ),
+                                                          child: ListTile(
+                                                            contentPadding:
+                                                                const EdgeInsets.symmetric(
+                                                                  horizontal:
+                                                                      20,
+                                                                  vertical: 5,
+                                                                ),
+                                                            leading: const Icon(
+                                                              Icons.star,
+                                                              color: Colors
+                                                                  .orangeAccent,
+                                                              size: 30,
+                                                            ),
+                                                            title: Text(
+                                                              city.toUpperCase(),
+                                                              style: TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                                fontSize: 16,
+                                                                color: isDark
+                                                                    ? Colors
+                                                                          .white
+                                                                    : Colors
+                                                                          .black,
+                                                              ),
+                                                            ),
+                                                            trailing: IconButton(
+                                                              icon: Icon(
+                                                                Icons
+                                                                    .delete_outline,
+                                                                color: isDark
+                                                                    ? Colors
+                                                                          .white54
+                                                                    : Colors
+                                                                          .grey,
+                                                              ),
+                                                              onPressed: () =>
+                                                                  _removeFavoriteFromList(
+                                                                    city,
+                                                                  ),
+                                                            ),
+                                                            onTap: () {
+                                                              _cityController
+                                                                      .text =
+                                                                  city;
+                                                              _rechercherLeMeilleur();
+                                                            },
+                                                          ),
+                                                        )
+                                                        .animate()
+                                                        .fadeIn(
+                                                          delay:
+                                                              (index * 100).ms,
+                                                        )
+                                                        .slideX(
+                                                          begin: -0.2,
+                                                          curve: Curves.easeOut,
+                                                        );
+                                                  },
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                   ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                    top: 5,
+                                    bottom: 5,
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        "Découvrez le fonctionnement de l'algorithme",
+                                        style: TextStyle(
+                                          color: isDark
+                                              ? Colors.white60
+                                              : Colors.black54,
+                                          fontStyle: FontStyle.italic,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                      IconButton(
+                                        icon: Icon(
+                                          Icons.info_outline,
+                                          color: isDark
+                                              ? Colors.white70
+                                              : Colors.blueAccent,
+                                          size: 20,
+                                        ),
+                                        onPressed: _showHowItWorksDialog,
+                                      ),
+                                    ],
+                                  ).animate().fadeIn(delay: 500.ms),
+                                ),
+                              ],
+                            ),
                           ),
                       ],
                     ),
