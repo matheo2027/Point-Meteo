@@ -16,15 +16,16 @@ class _HomeScreenState extends State<HomeScreen>
 
   final TextEditingController _cityController = TextEditingController();
   final WeatherService _weatherService = WeatherService();
+
   bool _isLoading = false;
   Map<String, dynamic>? _bestWeather;
   String? _bestSourceName;
+  List<dynamic> _hourlyForecast = [];
 
   Future<void> _geolocaliserEtChercher() async {
     setState(() => _isLoading = true);
 
     try {
-      // 1. Vérifier les permissions
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
@@ -37,7 +38,6 @@ class _HomeScreenState extends State<HomeScreen>
         throw Exception("Permissions bloquées définitivement");
       }
 
-      // 2. Récupérer la position actuelle
       Position position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.best,
@@ -45,13 +45,11 @@ class _HomeScreenState extends State<HomeScreen>
         ),
       );
 
-      // 3. Envoyer les coordonnées au Backend
       final response = await _weatherService.searchByCoords(
         position.latitude,
         position.longitude,
       );
 
-      // 4. Mettre à jour l'UI avec la ville trouvée
       setState(() {
         _cityController.text = response['ville'];
       });
@@ -78,24 +76,33 @@ class _HomeScreenState extends State<HomeScreen>
       final scores = await _weatherService.getScores(city['id']);
       final weather = await _weatherService.getWeather(city['id']);
 
+      // Variables pour la source gagnante
+      String gagnant;
+
+      if (scores.isNotEmpty) {
+        var bestSource = scores.reduce(
+          (a, b) =>
+              (double.parse(a['score_fiabilite'].toString()) >
+                  double.parse(b['score_fiabilite'].toString()))
+              ? a
+              : b,
+        );
+        gagnant = bestSource['source'];
+      } else {
+        gagnant = weather.isNotEmpty ? weather[0]['source'] : "Aucune donnée";
+      }
+
+      // --- NOUVEAUTÉ : On va chercher le Heure par Heure de la source gagnante ! ---
+      double lat = double.parse(city['coords']['latitude'].toString());
+      double lon = double.parse(city['coords']['longitude'].toString());
+      final hourly = await _weatherService.getHourlyWeather(lat, lon, gagnant);
+
+      // On met à jour l'écran avec TOUT
       setState(() {
-        if (scores.isNotEmpty) {
-          var bestSource = scores.reduce(
-            (a, b) =>
-                (double.parse(a['score_fiabilite'].toString()) >
-                    double.parse(b['score_fiabilite'].toString()))
-                ? a
-                : b,
-          );
-          _bestSourceName = bestSource['source'];
-        } else {
-          _bestSourceName = weather.isNotEmpty
-              ? weather[0]['source']
-              : "Aucune donnée";
-        }
+        _bestSourceName = gagnant;
+        _hourlyForecast = hourly; // On stocke les 24h
 
         String todayStr = DateTime.now().toString().substring(0, 10);
-
         _bestWeather = weather.firstWhere(
           (w) =>
               w['source'] == _bestSourceName &&
@@ -106,7 +113,6 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         );
 
-        print("MÉTÉO REÇUE POUR L'AFFICHAGE : $_bestWeather");
         _isLoading = false;
       });
     } catch (e) {
@@ -115,7 +121,6 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  // Fonction qui traduit le code WMO en icône Flutter
   IconData _getWeatherIcon(int weatherCode) {
     if (weatherCode == 0) return Icons.wb_sunny;
     if (weatherCode == 1 || weatherCode == 2) return Icons.cloud_queue;
@@ -125,25 +130,21 @@ class _HomeScreenState extends State<HomeScreen>
     if (weatherCode >= 71 && weatherCode <= 77) return Icons.ac_unit;
     if (weatherCode >= 80 && weatherCode <= 82) return Icons.umbrella;
     if (weatherCode >= 95 && weatherCode <= 99) return Icons.flash_on;
-    return Icons.wb_cloudy; // Par défaut
+    return Icons.wb_cloudy;
   }
 
-  // Fonction pour donner une couleur sympa à l'icône selon la météo
   Color _getWeatherIconColor(int weatherCode) {
-    if (weatherCode == 0) return Colors.orangeAccent; // Soleil
-    if (weatherCode >= 51 && weatherCode <= 67)
-      return Colors.lightBlueAccent; // Pluie
-    if (weatherCode >= 71 && weatherCode <= 77) return Colors.white; // Neige
-    if (weatherCode >= 95 && weatherCode <= 99)
-      return Colors.yellowAccent; // Orage
-    return Colors.white70; // Nuages/Gris par défaut
+    if (weatherCode == 0) return Colors.orangeAccent;
+    if (weatherCode >= 51 && weatherCode <= 67) return Colors.lightBlueAccent;
+    if (weatherCode >= 71 && weatherCode <= 77) return Colors.white;
+    if (weatherCode >= 95 && weatherCode <= 99) return Colors.yellowAccent;
+    return Colors.white70;
   }
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
 
-    // Extraction du code météo (On gère les deux noms possibles de la BDD pour éviter un crash)
     int weatherCode = 0;
     if (_bestWeather != null) {
       weatherCode =
@@ -171,7 +172,7 @@ class _HomeScreenState extends State<HomeScreen>
                   controller: _cityController,
                   decoration: InputDecoration(
                     filled: true,
-                    fillColor: Colors.white.withOpacity(0.9),
+                    fillColor: Colors.white.withValues(alpha: 0.9),
                     hintText: "Rechercher une ville...",
                     prefixIcon: IconButton(
                       icon: const Icon(
@@ -191,21 +192,23 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
                   onSubmitted: (_) => _rechercherLeMeilleur(),
                 ),
-                const SizedBox(height: 60),
+
+                const SizedBox(height: 30),
+
                 if (_isLoading)
                   const CircularProgressIndicator(color: Colors.white),
-                if (_bestWeather != null) ...[
-                  // --- MODIFICATION ICI : L'ICÔNE DYNAMIQUE ---
+
+                if (_bestWeather != null && !_isLoading) ...[
+                  // Bloc Principal
                   Icon(
                     _getWeatherIcon(weatherCode),
                     size: 80,
                     color: _getWeatherIconColor(weatherCode),
                   ),
-                  const SizedBox(height: 20),
                   Text(
                     "${_bestWeather!['temp']}°C",
                     style: const TextStyle(
-                      fontSize: 80,
+                      fontSize: 70,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
@@ -213,17 +216,65 @@ class _HomeScreenState extends State<HomeScreen>
                   Text(
                     _bestSourceName!.toUpperCase(),
                     style: const TextStyle(
-                      fontSize: 20,
+                      fontSize: 16,
                       color: Colors.white70,
-                      letterSpacing: 3,
-                      fontWeight: FontWeight.w900,
+                      letterSpacing: 2,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  Text(
-                    "Prévision pour le ${_bestWeather!['date_concernee'].toString().substring(0, 10)}",
-                    style: const TextStyle(color: Colors.white54),
-                  ),
+
+                  const SizedBox(height: 30),
+
+                  // --- LA NOUVELLE TIMELINE HEURE PAR HEURE ---
+                  if (_hourlyForecast.isNotEmpty)
+                    SizedBox(
+                      height: 130, // Hauteur de la bande
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _hourlyForecast.length,
+                        itemBuilder: (context, index) {
+                          final hourData = _hourlyForecast[index];
+                          final code = hourData['code_meteo'] ?? 0;
+
+                          return Container(
+                            width: 80, // Largeur de chaque carte
+                            margin: const EdgeInsets.symmetric(horizontal: 5),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  hourData['time'],
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                Icon(
+                                  _getWeatherIcon(code),
+                                  color: _getWeatherIconColor(code),
+                                  size: 30,
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                  "${hourData['temp']}°C",
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+
                   const Spacer(),
                   const Text(
                     "Source sélectionnée pour sa fiabilité élevée",

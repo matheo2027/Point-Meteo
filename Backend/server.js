@@ -128,6 +128,109 @@ app.get('/search-coords', async (req, res) => {
     }
 });
 
+// --- Fonctions de traduction pour la route Hourly ---
+function mapWeatherApiToWMO(code) {
+    if (code === 1000) return 0;
+    if (code === 1003) return 1;
+    if ([1006, 1009].includes(code)) return 3;
+    if ([1030, 1135, 1148].includes(code)) return 45;
+    if (code >= 1063 && code <= 1201) return 61;
+    if (code >= 1210 && code <= 1225) return 71;
+    if (code >= 1240 && code <= 1264) return 80;
+    if (code >= 1273 && code <= 1282) return 95;
+    return 3;
+}
+
+function mapMeteoConceptToWMO(code) {
+    if (code === 0) return 0;
+    if (code >= 1 && code <= 2) return 1;
+    if (code >= 3 && code <= 5) return 3;
+    if (code >= 10 && code <= 16) return 61;
+    if (code >= 20 && code <= 22) return 71;
+    if (code >= 30 && code <= 48) return 80;
+    if (code >= 100 && code <= 142) return 95;
+    return 3;
+}
+
+// ROUTE 5 : Récupérer le "Heure par Heure" en direct pour la MEILLEURE source
+app.get('/hourly', async (req, res) => {
+    const { lat, lon, source } = req.query;
+
+    if (!lat || !lon || !source) {
+        return res.status(400).json({ error: "Paramètres manquants (lat, lon, source)" });
+    }
+
+    try {
+        let hourlyData = [];
+        const now = new Date();
+
+        console.log(`📡 Requête Heure par Heure pour la source gagnante : ${source}`);
+
+        // --- CAS 1 : OPEN-METEO GAGNE ---
+        if (source === 'Open-Meteo') {
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,weathercode&timezone=auto&forecast_days=2`;
+            const response = await axios.get(url);
+            
+            for (let i = 0; i < response.data.hourly.time.length; i++) {
+                const hourTime = new Date(response.data.hourly.time[i]);
+                if (hourTime >= now && hourlyData.length < 24) {
+                    hourlyData.push({
+                        time: response.data.hourly.time[i].substring(11, 16),
+                        temp: Math.round(response.data.hourly.temperature_2m[i]),
+                        code_meteo: response.data.hourly.weathercode[i]
+                    });
+                }
+            }
+        } 
+        
+        // --- CAS 2 : WEATHERAPI GAGNE ---
+        else if (source === 'WeatherAPI') {
+            const API_KEY = process.env.WEATHER_API_KEY;
+            const url = `http://api.weatherapi.com/v1/forecast.json?key=${API_KEY}&q=${lat},${lon}&days=2`;
+            const response = await axios.get(url);
+            
+            const allHours = [
+                ...response.data.forecast.forecastday[0].hour,
+                ...response.data.forecast.forecastday[1].hour
+            ];
+
+            for (const h of allHours) {
+                const hourTime = new Date(h.time);
+                if (hourTime >= now && hourlyData.length < 24) {
+                    hourlyData.push({
+                        time: h.time.substring(11, 16),
+                        temp: Math.round(h.temp_c),
+                        code_meteo: mapWeatherApiToWMO(h.condition.code)
+                    });
+                }
+            }
+        } 
+        
+        // --- CAS 3 : METEO-CONCEPT GAGNE ---
+        else if (source === 'Meteo-Concept') {
+            const TOKEN = process.env.METEOCONCEPT_API_KEY;
+            const url = `https://api.meteo-concept.com/api/forecast/nextHours?token=${TOKEN}&latlng=${lat},${lon}`;
+            const response = await axios.get(url);
+
+            for (const h of response.data.forecast) {
+                if (hourlyData.length < 8) {
+                    hourlyData.push({
+                        time: h.datetime.substring(11, 16),
+                        temp: Math.round(h.temp2m),
+                        code_meteo: mapMeteoConceptToWMO(h.weather)
+                    });
+                }
+            }
+        }
+
+        res.json(hourlyData);
+
+    } catch (err) {
+        console.error("❌ Erreur Route Hourly :", err.message);
+        res.status(500).json({ error: "Impossible de récupérer les données horaires" });
+    }
+});
+
 // CRONS OPTIMISÉS
 cron.schedule('0 */3 * * *', async () => {
     console.log("🕒 [Cron] Prévisions...");

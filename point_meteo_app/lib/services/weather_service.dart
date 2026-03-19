@@ -54,4 +54,20 @@ class WeatherService {
     }
     return [];
   }
+
+  Future<List<dynamic>> getHourlyWeather(
+    double lat,
+    double lon,
+    String source,
+  ) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/hourly?lat=$lat&lon=$lon&source=$source'),
+    );
+
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      throw Exception('Erreur lors de la récupération des données horaires');
+    }
+  }
 }
