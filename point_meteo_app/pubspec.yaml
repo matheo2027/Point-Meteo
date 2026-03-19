@@ -1,4 +1,4 @@
-name: point_meteo-app
+name: point_meteo_app
 description: "Une application Flutter pour afficher les prévisions météorologiques basées sur la localisation de l'utilisateur."
 publish_to: 'none'
 
