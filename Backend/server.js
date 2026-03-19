@@ -1,10 +1,6 @@
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
-console.log("🔍 Tentative de lecture du .env à :", path.join(__dirname, '.env'));
-// Petit test de debug
-console.log("Clé Meteo-Concept présente :", !!process.env.METEOCONCEPT_API_KEY);
-
 const express = require('express');
 const axios = require('axios');
 const cron = require('node-cron');
@@ -20,7 +16,6 @@ app.get('/search/:nom', async (req, res) => {
     const nomVille = req.params.nom;
 
     try {
-        // 1. Vérifier si la ville existe déjà dans la base de données
         const result = await pool.query(
             "SELECT id, nom, latitude, longitude FROM villes WHERE LOWER(nom) = LOWER($1)", 
             [nomVille]
@@ -30,18 +25,26 @@ app.get('/search/:nom', async (req, res) => {
             const villeExistante = result.rows[0];
             console.log(`✅ Ville trouvée en base : ${villeExistante.nom}`);
             
-            // On renvoie directement la ville sans appeler les API de géocodage
+            // Vérifier si on a des données fraîches pour AUJOURD'HUI
+            const checkData = await pool.query(
+                "SELECT id FROM donnees_meteo WHERE ville_id = $1 AND date_concernee::date = CURRENT_DATE LIMIT 1",
+                [villeExistante.id]
+            );
+
+            if (checkData.rows.length === 0) {
+                console.log(`⚠️ Données obsolètes pour ${villeExistante.nom}. Lancement d'un fetch d'urgence !`);
+                await fetchAndStoreAllForecasts(villeExistante.id, villeExistante.latitude, villeExistante.longitude);
+            } else {
+                console.log(`✅ Données météo à jour pour ${villeExistante.nom}.`);
+            }
+
             return res.json({ 
                 id: villeExistante.id, 
                 ville: villeExistante.nom, 
-                coords: { 
-                    latitude: villeExistante.latitude, 
-                    longitude: villeExistante.longitude 
-                } 
+                coords: { latitude: villeExistante.latitude, longitude: villeExistante.longitude } 
             });
         }
 
-        // 2. Si la ville n'existe pas, on fetch depuis l'API de géocodage
         console.log(`🔍 Ville non trouvée en base. Recherche via API pour : ${nomVille}`);
         const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(nomVille)}&count=1&language=fr&format=json`;
         const geoRes = await axios.get(geoUrl);
@@ -51,11 +54,9 @@ app.get('/search/:nom', async (req, res) => {
         }
 
         const { latitude, longitude, name } = geoRes.data.results[0];
-        
-        // 3. Créer la ville et collecter les données météo initiales
         const villeId = await getOrCreateVille(name, latitude, longitude);
 
-        // On lance la collecte uniquement pour les nouvelles villes
+        console.log(`📥 Lancement du premier fetch pour ${name}...`);
         await fetchAndStoreAllForecasts(villeId, latitude, longitude);
         await fetchAndStoreAllRealData(villeId, latitude, longitude);
 
@@ -67,14 +68,14 @@ app.get('/search/:nom', async (req, res) => {
     }
 });
 
-// ROUTE 2 : Récupérer la météo stockée
+// ROUTE 2 : Récupérer la météo stockée (Celle qui manquait !)
 app.get('/weather/:villeId', async (req, res) => {
     try {
         const result = await pool.query(
             `SELECT * FROM donnees_meteo 
              WHERE ville_id = $1 
              AND date_concernee::date >= CURRENT_DATE 
-             ORDER BY date_concernee ASC, id DESC`, // id DESC pour prendre la ligne la plus récente si doublons
+             ORDER BY date_concernee ASC, id DESC`,
             [req.params.villeId]
         );
         res.json(result.rows);
@@ -102,23 +103,24 @@ app.get('/search-coords', async (req, res) => {
     console.log(`📍 Reverse Geocoding pour : Lat ${lat}, Lon ${lon}`);
 
     try {
-        // Nouvelle API : Plus rapide et pas de restriction d'User-Agent
         const geoUrl = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=fr`;
-        
         const response = await axios.get(geoUrl);
-        
-        // On récupère le nom de la ville (city) ou de la localité (locality)
         const cityName = response.data.city || response.data.locality || "Ville inconnue";
 
         console.log(`🏙️ Ville détectée : ${cityName}`);
-
-        // Utilisation de ta fonction dans db.js
         const villeId = await getOrCreateVille(cityName, lat, lon);
 
-        res.json({ 
-            id: villeId, 
-            ville: cityName 
-        });
+        const checkData = await pool.query(
+            "SELECT id FROM donnees_meteo WHERE ville_id = $1 AND date_concernee::date = CURRENT_DATE LIMIT 1",
+            [villeId]
+        );
+
+        if (checkData.rows.length === 0) {
+            console.log(`⚠️ Données obsolètes pour ${cityName} (GPS). Lancement d'un fetch d'urgence !`);
+            await fetchAndStoreAllForecasts(villeId, lat, lon);
+        }
+
+        res.json({ id: villeId, ville: cityName });
 
     } catch (err) {
         console.error("❌ Erreur API Geocoding :", err.message);
@@ -150,4 +152,4 @@ cron.schedule('14 0 * * *', async () => {
     });
 });
 
-app.listen(3000,'0.0.0.0', () => console.log("Serveur multi-sources prêt sur port 3000"));
+app.listen(3000, '0.0.0.0', () => console.log("Serveur multi-sources prêt sur port 3000"));

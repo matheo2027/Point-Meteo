@@ -2,8 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class WeatherService {
-  // Adresse IP spécifique pour l'émulateur Android vers ton PC
-  final String baseUrl = "http://192.168.1.70:3000";
+  final String baseUrl = "http://10.0.2.2:3000";
 
   static int? lastCityId;
   static String? lastCityName;
