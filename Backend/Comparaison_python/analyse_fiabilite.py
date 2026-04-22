@@ -1,12 +1,48 @@
 import pandas as pd
 from sqlalchemy import create_engine, text
-import datetime
+import os
+from pathlib import Path
 
-# 1. Connexion ultra-rapide via SQLAlchemy
-engine = create_engine('postgresql://postgres:RrDlTbKrpNPg1yDY@localhost:5432/meteo_db')
+
+def _load_env_if_exists(env_path):
+    if not env_path.exists():
+        return
+    for raw_line in env_path.read_text(encoding='utf-8').splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith('#') or '=' not in line:
+            continue
+        key, value = line.split('=', 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        os.environ.setdefault(key, value)
+
+
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_BACKEND_DIR = _SCRIPT_DIR.parent
+_load_env_if_exists(_BACKEND_DIR / '.env')
+_load_env_if_exists(_SCRIPT_DIR / '.env')
+
+REFERENCE_SOURCE = os.getenv('REFERENCE_SOURCE', 'Reference-Obs')
+
+# Score sur 100 conservé, mais plus progressif qu'un simple "-10 par degré"
+SCORE_PER_DEGREE = float(os.getenv('SCORE_PER_DEGREE', '6.0'))
+FULL_CONFIDENCE_DAYS = int(os.getenv('FULL_CONFIDENCE_DAYS', '7'))
+MIN_REQUIRED_MATCHES = int(os.getenv('MIN_REQUIRED_MATCHES', '3'))
+
+
+def _db_url():
+    user = os.getenv('DB_USER', 'postgres')
+    password = os.getenv('DB_PASSWORD', '')
+    host = os.getenv('DB_HOST', 'localhost')
+    port = os.getenv('DB_PORT', '5432')
+    db_name = os.getenv('DB_NAME', 'meteo_db')
+    return f'postgresql://{user}:{password}@{host}:{port}/{db_name}'
+
+
+engine = create_engine(_db_url())
 
 def calculer_fiabilite():
-    print("Démarrage de l'analyse haute performance...")
+    print("Demarrage de l'analyse haute performance...")
     
     # 2. On charge tout en mémoire avec une seule requête SQL
     query = """
@@ -17,15 +53,18 @@ def calculer_fiabilite():
     df = pd.read_sql(query, engine)
 
     if df.empty:
-        print("ℹPas assez de données pour l'analyse.")
+        print("INFO: Pas assez de donnees pour l'analyse.")
         return
 
-    # 3. On sépare Prévisions et Réalité
+    # 3. On sépare Prévisions et Réalité (référence indépendante)
     previsions = df[df['type'] == 'prevision']
-    realite = df[df['type'] == 'realite']
+    realite = df[(df['type'] == 'realite') & (df['source'] == REFERENCE_SOURCE)]
 
-    # 4. LE CŒUR DE L'ALGO : On fusionne les deux sur la date et la ville
-    # Cela permet de comparer directement la prévision d'une source avec la réalité
+    if realite.empty:
+        print(f"INFO: Aucune donnee de reference trouvee (source='{REFERENCE_SOURCE}').")
+        return
+
+    # 4. Fusion prévisions vs vérité terrain, par ville et date
     comparaison = pd.merge(
         previsions, 
         realite[['ville_id', 'date_concernee', 'temp']], 
@@ -33,15 +72,34 @@ def calculer_fiabilite():
         suffixes=('_prev', '_reel')
     )
 
+    if comparaison.empty:
+        print("INFO: Pas de chevauchement prevision/realite de reference sur la fenetre de 7 jours.")
+        return
+
     # 5. Calcul de l'erreur absolue : |Temp_Prévue - Temp_Réelle|
     comparaison['erreur'] = (comparaison['temp_prev'] - comparaison['temp_reel']).abs()
 
-    # 6. Groupement par ville et source pour avoir le score moyen
-    # Plus l'erreur est proche de 0, plus la source est fiable
-    scores = comparaison.groupby(['ville_id', 'source'])['erreur'].mean().reset_index()
+    # 6. Agrégation MAE + taille d'échantillon par ville/source
+    scores = (
+        comparaison
+        .groupby(['ville_id', 'source'])
+        .agg(
+            erreur=('erreur', 'mean'),
+            nb_points=('erreur', 'count')
+        )
+        .reset_index()
+    )
 
-    # Transformation de l'erreur en score sur 100 (ex: 0° d'erreur = 100%, 5° d'erreur = 50%)
-    scores['score'] = scores['erreur'].apply(lambda x: max(0, 100 - (x * 10)))
+    # Filtre anti-bruit: évite de classer sur 1 ou 2 jours seulement
+    scores = scores[scores['nb_points'] >= MIN_REQUIRED_MATCHES].copy()
+    if scores.empty:
+        print("INFO: Donnees insuffisantes apres filtre de fiabilite minimale.")
+        return
+
+    # Score sur 100 conservé, avec pénalité progressive + facteur confiance lié au volume
+    scores['base_score'] = (100 - (scores['erreur'] * SCORE_PER_DEGREE)).clip(lower=0, upper=100)
+    scores['confidence'] = (scores['nb_points'] / FULL_CONFIDENCE_DAYS).clip(lower=0.3, upper=1.0)
+    scores['score'] = (scores['base_score'] * (0.7 + 0.3 * scores['confidence'])).round(2)
 
     # 7. Mise à jour massive de la base de données (Version SQLAlchemy 2.0+)
     with engine.begin() as conn:  # Utilise un contexte de connexion

@@ -4,6 +4,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../main.dart';
+import 'search_not_found_screen.dart';
+import '../widgets/state_views.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,6 +23,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   final TextEditingController _cityController = TextEditingController();
   final WeatherService _weatherService = WeatherService();
+  late final VoidCallback _forceResetListener;
 
   bool _isLoading = false;
   Map<String, dynamic>? _bestWeather;
@@ -28,6 +31,10 @@ class _HomeScreenState extends State<HomeScreen>
 
   List<dynamic> _hourlyForecast = [];
   List<dynamic> _dailyForecast = [];
+  List<Map<String, dynamic>> _apiComparisonRows = [];
+  bool _showAllApiRows = false;
+  String? _notFoundQuery;
+  String? _homeErrorMessage;
 
   bool _isFavorite = false;
   List<String> _favoriteCities = [];
@@ -36,21 +43,33 @@ class _HomeScreenState extends State<HomeScreen>
   void initState() {
     super.initState();
     _loadFavorites();
+    _forceResetListener = () {
+      if (!mounted) return;
+      setState(() {
+        _favoriteCities.clear();
+        _isFavorite = false;
+        _bestWeather = null;
+        _cityController.clear();
+        _notFoundQuery = null;
+        _homeErrorMessage = null;
+        _apiComparisonRows = [];
+        _showAllApiRows = false;
+      });
+    };
 
-    HomeScreen.forceResetNotifier.addListener(() {
-      if (mounted) {
-        setState(() {
-          _favoriteCities.clear();
-          _isFavorite = false;
-          _bestWeather = null;
-          _cityController.clear();
-        });
-      }
-    });
+    HomeScreen.forceResetNotifier.addListener(_forceResetListener);
+  }
+
+  @override
+  void dispose() {
+    HomeScreen.forceResetNotifier.removeListener(_forceResetListener);
+    _cityController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadFavorites() async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     setState(() {
       _favoriteCities = prefs.getStringList('favorites') ?? [];
     });
@@ -58,6 +77,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _toggleFavorite() async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     final cityName = _cityController.text.trim();
 
     if (cityName.isEmpty) return;
@@ -82,6 +102,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _removeFavoriteFromList(String city) async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     setState(() {
       _favoriteCities.remove(city);
       if (_cityController.text == city) _isFavorite = false;
@@ -100,11 +121,19 @@ class _HomeScreenState extends State<HomeScreen>
       _cityController.clear();
       _bestWeather = null;
       _isFavorite = false;
+      _notFoundQuery = null;
+      _homeErrorMessage = null;
+      _apiComparisonRows = [];
+      _showAllApiRows = false;
     });
   }
 
   Future<void> _geolocaliserEtChercher() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _homeErrorMessage = null;
+      _notFoundQuery = null;
+    });
     try {
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
@@ -126,21 +155,27 @@ class _HomeScreenState extends State<HomeScreen>
         position.latitude,
         position.longitude,
       );
+      if (!mounted) return;
       setState(() {
         _cityController.text = response['ville'];
       });
       _rechercherLeMeilleur();
     } catch (e) {
-      setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Géolocalisation impossible : $e")),
-      );
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _homeErrorMessage = "Geolocalisation impossible: $e";
+      });
     }
   }
 
   Future<void> _rechercherLeMeilleur() async {
     if (_cityController.text.isEmpty) return;
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _notFoundQuery = null;
+      _homeErrorMessage = null;
+    });
 
     try {
       final city = await _weatherService.searchCity(_cityController.text);
@@ -165,9 +200,13 @@ class _HomeScreenState extends State<HomeScreen>
       double lon = double.parse(city['coords']['longitude'].toString());
       final hourly = await _weatherService.getHourlyWeather(lat, lon, gagnant);
 
+      if (!mounted) return;
+
       setState(() {
         _bestSourceName = gagnant;
         _hourlyForecast = hourly;
+        _notFoundQuery = null;
+        _homeErrorMessage = null;
 
         Map<String, dynamic> uniqueDays = {};
         for (var w in weather) {
@@ -183,6 +222,28 @@ class _HomeScreenState extends State<HomeScreen>
         _dailyForecast.sort(
           (a, b) => a['date_concernee'].compareTo(b['date_concernee']),
         );
+
+        final Map<String, Map<String, dynamic>> byDate = {};
+        for (final item in weather) {
+          if (item['type'] != 'prevision') continue;
+          final String source = item['source'].toString();
+          if (!['Open-Meteo', 'WeatherAPI', 'Meteo-Concept'].contains(source)) {
+            continue;
+          }
+
+          final String date = item['date_concernee'].toString().substring(
+            0,
+            10,
+          );
+          byDate.putIfAbsent(date, () => {'date': date});
+          byDate[date]![source] = item;
+        }
+
+        _apiComparisonRows = byDate.values.toList()
+          ..sort(
+            (a, b) => a['date'].toString().compareTo(b['date'].toString()),
+          );
+        _showAllApiRows = false;
 
         String todayStr = DateTime.now().toString().substring(0, 10);
         _bestWeather = weather.firstWhere(
@@ -200,8 +261,26 @@ class _HomeScreenState extends State<HomeScreen>
         _isLoading = false;
       });
     } catch (e) {
-      setState(() => _isLoading = false);
-      print("Erreur: $e");
+      if (!mounted) return;
+      if (e is CityNotFoundException) {
+        setState(() {
+          _isLoading = false;
+          _notFoundQuery = e.cityName;
+          _bestWeather = null;
+          _bestSourceName = null;
+          _hourlyForecast = [];
+          _dailyForecast = [];
+          _apiComparisonRows = [];
+          _showAllApiRows = false;
+          _isFavorite = false;
+        });
+        return;
+      }
+
+      setState(() {
+        _isLoading = false;
+        _homeErrorMessage = "Erreur de recherche: $e";
+      });
     }
   }
 
@@ -247,6 +326,52 @@ class _HomeScreenState extends State<HomeScreen>
     if (weatherCode >= 71 && weatherCode <= 77) return Colors.white;
     if (weatherCode >= 95 && weatherCode <= 99) return Colors.yellowAccent;
     return Colors.white70;
+  }
+
+  double? _getTempTrendNext3Hours() {
+    if (_hourlyForecast.length < 2) return null;
+
+    final int targetIndex = _hourlyForecast.length > 3
+        ? 3
+        : _hourlyForecast.length - 1;
+
+    final double startTemp =
+        double.tryParse(_hourlyForecast[0]['temp'].toString()) ?? 0;
+    final double targetTemp =
+        double.tryParse(_hourlyForecast[targetIndex]['temp'].toString()) ?? 0;
+
+    return targetTemp - startTemp;
+  }
+
+  IconData _getTrendIcon(double delta) {
+    if (delta > 0.1) return Icons.north_east;
+    if (delta < -0.1) return Icons.south_east;
+    return Icons.trending_flat;
+  }
+
+  Color _getTrendColor(double delta) {
+    if (delta > 0.1) return Colors.greenAccent;
+    if (delta < -0.1) return Colors.redAccent;
+    return Colors.white70;
+  }
+
+  String _formatTrendDelta(double delta, bool isCelsius) {
+    final double displayDelta = isCelsius ? delta : (delta * 9 / 5);
+    final String sign = displayDelta > 0 ? '+' : '';
+    final String unit = isCelsius ? 'C' : 'F';
+    return '$sign${displayDelta.toStringAsFixed(1)}°$unit';
+  }
+
+  String _formatComparisonTemp(
+    Map<String, dynamic>? dayBySource,
+    String source,
+    bool isCelsius,
+    String unit,
+  ) {
+    final item = dayBySource?[source];
+    if (item == null) return '--';
+    final value = _convertTemp(item['temp'], isCelsius);
+    return '$value°$unit';
   }
 
   void _showHowItWorksDialog() {
@@ -419,11 +544,7 @@ class _HomeScreenState extends State<HomeScreen>
 
                         if (_isLoading)
                           const Expanded(
-                            child: Center(
-                              child: CircularProgressIndicator(
-                                color: Colors.blueAccent,
-                              ),
-                            ),
+                            child: LoadingSkeletonView(itemCount: 4),
                           ),
 
                         if (_bestWeather != null && !_isLoading)
@@ -459,63 +580,118 @@ class _HomeScreenState extends State<HomeScreen>
                                         .fadeIn(duration: 600.ms)
                                         .scale(curve: Curves.easeOutBack),
 
-                                    Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Text(
-                                              _cityController.text
-                                                  .toUpperCase(),
-                                              style: const TextStyle(
-                                                fontSize: 24,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.white,
+                                    Container(
+                                          width: double.infinity,
+                                          margin: const EdgeInsets.only(top: 8),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 18,
+                                            vertical: 16,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white.withValues(
+                                              alpha: 0.12,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              22,
+                                            ),
+                                            border: Border.all(
+                                              color: Colors.white.withValues(
+                                                alpha: 0.2,
                                               ),
                                             ),
-                                            IconButton(
-                                              icon: Icon(
-                                                _isFavorite
-                                                    ? Icons.favorite
-                                                    : Icons.favorite_border,
-                                                color: _isFavorite
-                                                    ? Colors.redAccent
-                                                    : Colors.white,
+                                          ),
+                                          child: Column(
+                                            children: [
+                                              Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
+                                                children: [
+                                                  const Icon(
+                                                    Icons.location_on,
+                                                    size: 18,
+                                                    color: Colors.white70,
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  Flexible(
+                                                    child: Text(
+                                                      _cityController.text
+                                                          .toUpperCase(),
+                                                      textAlign:
+                                                          TextAlign.center,
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      style: const TextStyle(
+                                                        fontSize: 22,
+                                                        fontWeight:
+                                                            FontWeight.w800,
+                                                        letterSpacing: 1.2,
+                                                        color: Colors.white,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  IconButton(
+                                                    constraints:
+                                                        const BoxConstraints(),
+                                                    padding:
+                                                        const EdgeInsets.all(4),
+                                                    icon: Icon(
+                                                      _isFavorite
+                                                          ? Icons.favorite
+                                                          : Icons
+                                                                .favorite_border,
+                                                      color: _isFavorite
+                                                          ? Colors.redAccent
+                                                          : Colors.white,
+                                                      size: 22,
+                                                    ),
+                                                    onPressed: _toggleFavorite,
+                                                  ),
+                                                ],
                                               ),
-                                              onPressed: _toggleFavorite,
-                                            ),
-                                          ],
-                                        )
-                                        .animate()
-                                        .fadeIn(delay: 200.ms)
-                                        .slideY(
-                                          begin: 0.2,
-                                          curve: Curves.easeOut,
-                                        ),
-
-                                    Text(
-                                          "${_convertTemp(_bestWeather!['temp'], isCelsius)}°$unit",
-                                          style: const TextStyle(
-                                            fontSize: 70,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.white,
+                                              const SizedBox(height: 10),
+                                              Text(
+                                                "${_convertTemp(_bestWeather!['temp'], isCelsius)}°$unit",
+                                                style: const TextStyle(
+                                                  fontSize: 74,
+                                                  fontWeight: FontWeight.w900,
+                                                  height: 0.95,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 10,
+                                                      vertical: 6,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.white
+                                                      .withValues(alpha: 0.14),
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                        999,
+                                                      ),
+                                                ),
+                                                child: Text(
+                                                  _bestSourceName!
+                                                      .toUpperCase(),
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.white70,
+                                                    letterSpacing: 1.8,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         )
                                         .animate()
-                                        .fadeIn(delay: 300.ms)
-                                        .slideY(
-                                          begin: 0.2,
-                                          curve: Curves.easeOut,
-                                        ),
-
-                                    Text(
-                                      _bestSourceName!.toUpperCase(),
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        color: Colors.white70,
-                                        letterSpacing: 2,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ).animate().fadeIn(delay: 400.ms),
+                                        .fadeIn(delay: 220.ms)
+                                        .slideY(begin: 0.15),
 
                                     const SizedBox(height: 30),
 
@@ -531,6 +707,47 @@ class _HomeScreenState extends State<HomeScreen>
                                           ),
                                         ),
                                       ).animate().fadeIn(delay: 500.ms),
+                                      Builder(
+                                        builder: (context) {
+                                          final double? trend3h =
+                                              _getTempTrendNext3Hours();
+                                          if (trend3h == null) {
+                                            return const SizedBox.shrink();
+                                          }
+
+                                          return Align(
+                                            alignment: Alignment.centerLeft,
+                                            child: Padding(
+                                              padding: const EdgeInsets.only(
+                                                top: 6,
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(
+                                                    _getTrendIcon(trend3h),
+                                                    color: _getTrendColor(
+                                                      trend3h,
+                                                    ),
+                                                    size: 18,
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  Text(
+                                                    'Tendance 3h: ${_formatTrendDelta(trend3h, isCelsius)}',
+                                                    style: TextStyle(
+                                                      color: _getTrendColor(
+                                                        trend3h,
+                                                      ),
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ).animate().fadeIn(delay: 520.ms);
+                                        },
+                                      ),
                                       const SizedBox(height: 10),
                                       SizedBox(
                                         height: 130,
@@ -738,6 +955,133 @@ class _HomeScreenState extends State<HomeScreen>
                                         ),
                                       ),
                                     ],
+
+                                    if (_apiComparisonRows.isNotEmpty) ...[
+                                      const SizedBox(height: 26),
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          const Text(
+                                            'Comparatif des APIs',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          TextButton(
+                                            onPressed: () {
+                                              setState(() {
+                                                _showAllApiRows =
+                                                    !_showAllApiRows;
+                                              });
+                                            },
+                                            child: Text(
+                                              _showAllApiRows
+                                                  ? 'View less'
+                                                  : 'View all',
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ).animate().fadeIn(delay: 860.ms),
+                                      const SizedBox(height: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 10,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.14,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            18,
+                                          ),
+                                        ),
+                                        child: SingleChildScrollView(
+                                          scrollDirection: Axis.horizontal,
+                                          child: DataTable(
+                                            headingTextStyle: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 13,
+                                            ),
+                                            dataTextStyle: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                            columns: const [
+                                              DataColumn(label: Text('Date')),
+                                              DataColumn(
+                                                label: Text('Open-Meteo'),
+                                              ),
+                                              DataColumn(
+                                                label: Text('WeatherAPI'),
+                                              ),
+                                              DataColumn(
+                                                label: Text('Meteo-Concept'),
+                                              ),
+                                            ],
+                                            rows:
+                                                (_showAllApiRows
+                                                        ? _apiComparisonRows
+                                                        : _apiComparisonRows
+                                                              .take(3))
+                                                    .map((day) {
+                                                      return DataRow(
+                                                        cells: [
+                                                          DataCell(
+                                                            Text(
+                                                              _formatDate(
+                                                                day['date']
+                                                                    .toString(),
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          DataCell(
+                                                            Text(
+                                                              _formatComparisonTemp(
+                                                                day,
+                                                                'Open-Meteo',
+                                                                isCelsius,
+                                                                unit,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          DataCell(
+                                                            Text(
+                                                              _formatComparisonTemp(
+                                                                day,
+                                                                'WeatherAPI',
+                                                                isCelsius,
+                                                                unit,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          DataCell(
+                                                            Text(
+                                                              _formatComparisonTemp(
+                                                                day,
+                                                                'Meteo-Concept',
+                                                                isCelsius,
+                                                                unit,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      );
+                                                    })
+                                                    .toList(),
+                                          ),
+                                        ),
+                                      ).animate().fadeIn(delay: 900.ms),
+                                    ],
                                     const SizedBox(height: 20),
 
                                     Row(
@@ -766,6 +1110,23 @@ class _HomeScreenState extends State<HomeScreen>
                                   ],
                                 ),
                               ),
+                            ),
+                          )
+                        else if (!_isLoading && _notFoundQuery != null)
+                          Expanded(
+                            child: SearchNotFoundScreen(
+                              query: _notFoundQuery!,
+                              onTryAgain: _rechercherLeMeilleur,
+                            ),
+                          )
+                        else if (!_isLoading && _homeErrorMessage != null)
+                          Expanded(
+                            child: ErrorStateView(
+                              title: 'Erreur de chargement',
+                              message: _homeErrorMessage!,
+                              onRetry: _cityController.text.trim().isNotEmpty
+                                  ? _rechercherLeMeilleur
+                                  : _geolocaliserEtChercher,
                             ),
                           )
                         else if (!_isLoading)
@@ -843,11 +1204,8 @@ class _HomeScreenState extends State<HomeScreen>
                                                     final city =
                                                         _favoriteCities[index];
                                                     return Card(
-                                                          color: isDark
-                                                              ? Colors
-                                                                    .grey
-                                                                    .shade800
-                                                              : Colors.white,
+                                                          color: Colors
+                                                              .transparent,
                                                           elevation: 2,
                                                           margin:
                                                               const EdgeInsets.only(
@@ -859,54 +1217,147 @@ class _HomeScreenState extends State<HomeScreen>
                                                                   15,
                                                                 ),
                                                           ),
-                                                          child: ListTile(
-                                                            contentPadding:
-                                                                const EdgeInsets.symmetric(
-                                                                  horizontal:
-                                                                      20,
-                                                                  vertical: 5,
-                                                                ),
-                                                            leading: const Icon(
-                                                              Icons.star,
-                                                              color: Colors
-                                                                  .orangeAccent,
-                                                              size: 30,
-                                                            ),
-                                                            title: Text(
-                                                              city.toUpperCase(),
-                                                              style: TextStyle(
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .bold,
-                                                                fontSize: 16,
+                                                          child: Container(
+                                                            decoration: BoxDecoration(
+                                                              gradient: LinearGradient(
+                                                                begin: Alignment
+                                                                    .topLeft,
+                                                                end: Alignment
+                                                                    .bottomRight,
+                                                                colors: isDark
+                                                                    ? [
+                                                                        Colors
+                                                                            .blueGrey
+                                                                            .shade800,
+                                                                        Colors
+                                                                            .blueGrey
+                                                                            .shade900,
+                                                                      ]
+                                                                    : [
+                                                                        Colors
+                                                                            .blue
+                                                                            .shade50,
+                                                                        Colors
+                                                                            .white,
+                                                                      ],
+                                                              ),
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
+                                                                    15,
+                                                                  ),
+                                                              border: Border.all(
                                                                 color: isDark
                                                                     ? Colors
                                                                           .white
+                                                                          .withValues(
+                                                                            alpha:
+                                                                                0.08,
+                                                                          )
                                                                     : Colors
-                                                                          .black,
+                                                                          .blueGrey
+                                                                          .withValues(
+                                                                            alpha:
+                                                                                0.12,
+                                                                          ),
                                                               ),
                                                             ),
-                                                            trailing: IconButton(
-                                                              icon: Icon(
-                                                                Icons
-                                                                    .delete_outline,
-                                                                color: isDark
-                                                                    ? Colors
-                                                                          .white54
-                                                                    : Colors
-                                                                          .grey,
-                                                              ),
-                                                              onPressed: () =>
-                                                                  _removeFavoriteFromList(
-                                                                    city,
+                                                            child: ClipRRect(
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
+                                                                    15,
                                                                   ),
+                                                              child: Stack(
+                                                                children: [
+                                                                  Positioned(
+                                                                    right: -22,
+                                                                    top: -18,
+                                                                    child: Container(
+                                                                      width: 74,
+                                                                      height:
+                                                                          74,
+                                                                      decoration: BoxDecoration(
+                                                                        shape: BoxShape
+                                                                            .circle,
+                                                                        color: Colors.white.withValues(
+                                                                          alpha:
+                                                                              isDark
+                                                                              ? 0.05
+                                                                              : 0.35,
+                                                                        ),
+                                                                      ),
+                                                                    ),
+                                                                  ),
+                                                                  Positioned(
+                                                                    left: -12,
+                                                                    bottom: -20,
+                                                                    child: Container(
+                                                                      width: 56,
+                                                                      height:
+                                                                          56,
+                                                                      decoration: BoxDecoration(
+                                                                        shape: BoxShape
+                                                                            .circle,
+                                                                        color: Colors.white.withValues(
+                                                                          alpha:
+                                                                              isDark
+                                                                              ? 0.04
+                                                                              : 0.25,
+                                                                        ),
+                                                                      ),
+                                                                    ),
+                                                                  ),
+                                                                  ListTile(
+                                                                    contentPadding:
+                                                                        const EdgeInsets.symmetric(
+                                                                          horizontal:
+                                                                              20,
+                                                                          vertical:
+                                                                              5,
+                                                                        ),
+                                                                    leading: const Icon(
+                                                                      Icons
+                                                                          .star,
+                                                                      color: Colors
+                                                                          .orangeAccent,
+                                                                      size: 30,
+                                                                    ),
+                                                                    title: Text(
+                                                                      city.toUpperCase(),
+                                                                      style: TextStyle(
+                                                                        fontWeight:
+                                                                            FontWeight.bold,
+                                                                        fontSize:
+                                                                            16,
+                                                                        color:
+                                                                            isDark
+                                                                            ? Colors.white
+                                                                            : Colors.black,
+                                                                      ),
+                                                                    ),
+                                                                    trailing: IconButton(
+                                                                      icon: Icon(
+                                                                        Icons
+                                                                            .delete_outline,
+                                                                        color:
+                                                                            isDark
+                                                                            ? Colors.white54
+                                                                            : Colors.grey,
+                                                                      ),
+                                                                      onPressed: () =>
+                                                                          _removeFavoriteFromList(
+                                                                            city,
+                                                                          ),
+                                                                    ),
+                                                                    onTap: () {
+                                                                      _cityController
+                                                                              .text =
+                                                                          city;
+                                                                      _rechercherLeMeilleur();
+                                                                    },
+                                                                  ),
+                                                                ],
+                                                              ),
                                                             ),
-                                                            onTap: () {
-                                                              _cityController
-                                                                      .text =
-                                                                  city;
-                                                              _rechercherLeMeilleur();
-                                                            },
                                                           ),
                                                         )
                                                         .animate()
