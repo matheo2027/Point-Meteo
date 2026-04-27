@@ -3,7 +3,6 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const express = require('express');
 const axios = require('axios');
-const cron = require('node-cron');
 const { getOrCreateVille, pool } = require('./db');
 const {
     fetchAndStoreAllForecasts,
@@ -41,6 +40,25 @@ function checkAdminToken(req) {
     const expected = process.env.ADMIN_TOKEN;
     if (!expected) return false;
     return req.headers['x-admin-token'] === expected;
+}
+
+async function runDailyWeatherMaintenance() {
+    const villes = await pool.query('SELECT id, latitude, longitude FROM villes');
+
+    for (const ville of villes.rows) {
+        await fetchAndStoreAllForecasts(ville.id, ville.latitude, ville.longitude);
+    }
+
+    for (const ville of villes.rows) {
+        await fetchAndStoreAllRealData(ville.id, ville.latitude, ville.longitude);
+    }
+
+    const analysisOutput = await runReliabilityAnalysis();
+
+    return {
+        processedCities: villes.rows.length,
+        analysisOutput: analysisOutput.trim()
+    };
 }
 
 function getCachedProviderLatency(source) {
@@ -715,26 +733,27 @@ app.post('/admin/reliability/rebuild', async (req, res) => {
     }
 });
 
-// CRONS OPTIMISÉS
-cron.schedule('0 */3 * * *', async () => {
-    console.log("🕒 [Cron] Prévisions...");
-    const villes = await pool.query("SELECT * FROM villes");
-    for (const v of villes.rows) {
-        await fetchAndStoreAllForecasts(v.id, v.latitude, v.longitude);
+// ROUTE CRON EXTERNE : appelée par GitHub Actions / cron-job.org
+app.post('/api/trigger-daily-weather', async (req, res) => {
+    if (!process.env.ADMIN_TOKEN) {
+        return res.status(503).json({
+            error: 'ADMIN_TOKEN non configuré. Route désactivée.'
+        });
     }
-});
 
-cron.schedule('14 0 * * *', async () => {
-    console.log("🕒 [Cron] Réalité veille...");
-    const villes = await pool.query("SELECT * FROM villes");
-    for (const v of villes.rows) {
-        await fetchAndStoreAllRealData(v.id, v.latitude, v.longitude);
+    if (!checkAdminToken(req)) {
+        return res.status(403).json({ error: 'Accès non autorisé' });
     }
+
     try {
-        const output = await runReliabilityAnalysis();
-        console.log(`📊 Analyse de fiabilité terminée : ${output}`);
+        const result = await runDailyWeatherMaintenance();
+        res.json({
+            status: 'ok',
+            ...result
+        });
     } catch (error) {
-        console.error(`❌ Erreur Analyse Python: ${error.message}`);
+        console.error('❌ Erreur maintenance météo :', error.message);
+        res.status(500).json({ error: error.message });
     }
 });
 
