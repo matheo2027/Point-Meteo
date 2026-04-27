@@ -752,8 +752,13 @@ app.post('/api/trigger-daily-weather', async (req, res) => {
             ...result
         });
     } catch (error) {
-        console.error('❌ Erreur maintenance météo :', error.message);
-        res.status(500).json({ error: error.message });
+        // 1. On log l'erreur COMPLÈTE dans Render pour tout voir (la stack trace, etc.)
+        console.error('❌ Erreur maintenance météo ENTIÈRE :', error); 
+        
+        // 2. On s'assure d'avoir un texte à renvoyer à GitHub Action
+        const errorMessage = error instanceof Error ? error.message : JSON.stringify(error) || String(error);
+        
+        res.status(500).json({ error: errorMessage });
     }
 });
 
