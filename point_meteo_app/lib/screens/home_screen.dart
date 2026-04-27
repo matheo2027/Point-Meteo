@@ -308,7 +308,6 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  // --- MODIFIÉ : Ajout du paramètre isNight ---
   IconData _getWeatherIcon(int weatherCode, {bool isNight = false}) {
     if (weatherCode == 0)
       return isNight ? Icons.nightlight_round : Icons.wb_sunny;
@@ -323,7 +322,6 @@ class _HomeScreenState extends State<HomeScreen>
     return Icons.wb_cloudy;
   }
 
-  // --- MODIFIÉ : Ajout du paramètre isNight pour les couleurs ---
   Color _getWeatherIconColor(int weatherCode, {bool isNight = false}) {
     if (weatherCode == 0)
       return isNight ? Colors.indigo.shade200 : Colors.orangeAccent;
@@ -572,7 +570,6 @@ class _HomeScreenState extends State<HomeScreen>
                                 child: Column(
                                   children: [
                                     const SizedBox(height: 10),
-                                    // --- MODIFIÉ : Application de isNight pour l'icône principale ---
                                     Icon(
                                           _getWeatherIcon(
                                             weatherCode,
@@ -770,7 +767,6 @@ class _HomeScreenState extends State<HomeScreen>
                                                   hourData['code_meteo'],
                                             );
 
-                                            // --- NOUVEAU : On vérifie si CETTE heure est la nuit ---
                                             int h = 12;
                                             try {
                                               h = int.parse(
@@ -817,7 +813,6 @@ class _HomeScreenState extends State<HomeScreen>
                                                       const SizedBox(
                                                         height: 10,
                                                       ),
-                                                      // --- MODIFIÉ : Application de isNightHour ---
                                                       Icon(
                                                         _getWeatherIcon(
                                                           code,
@@ -923,7 +918,6 @@ class _HomeScreenState extends State<HomeScreen>
                                                               ),
                                                         ),
                                                       ),
-                                                      // --- MODIFIÉ : On force les jours en "soleil" (isNight: false) ---
                                                       Icon(
                                                         _getWeatherIcon(
                                                           dCode,

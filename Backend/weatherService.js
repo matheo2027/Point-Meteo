@@ -29,7 +29,6 @@ async function fetchAndStoreAllForecasts(villeId, lat, lon) {
                 // On passe le code_meteo à la fonction de sauvegarde
                 await saveMeteo(villeId, source.name, item.date, item.temp, item.code_meteo, 'prevision');
             }
-            console.log(`   -> ${source.name} : OK`);
             await new Promise(res => setTimeout(res, 500));
         } catch (err) {
             console.error(`   ! Erreur ${source.name}:`, err.message);
@@ -48,7 +47,6 @@ async function fetchAndStoreAllRealData(villeId, lat, lon) {
             data.code_meteo,
             'realite'
         );
-        console.log(`   -> ${referenceObservationService.name} (Référence) : OK`);
     } catch (err) {
         console.error(`   ! Erreur Référence ${referenceObservationService.name}:`, err.message);
     }

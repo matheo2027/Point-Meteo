@@ -49,8 +49,6 @@ def _db_url():
 engine = create_engine(_db_url())
 
 def calculer_fiabilite():
-    print("Demarrage de l'analyse haute performance...")
-    
     # 2. On charge tout en mémoire avec une seule requête SQL
     query = """
     SELECT ville_id, source, temp, date_concernee, type 
@@ -60,7 +58,6 @@ def calculer_fiabilite():
     df = pd.read_sql(query, engine)
 
     if df.empty:
-        print("INFO: Pas assez de donnees pour l'analyse.")
         return
 
     # 3. On sépare Prévisions et Réalité (référence indépendante)
@@ -68,7 +65,6 @@ def calculer_fiabilite():
     realite = df[(df['type'] == 'realite') & (df['source'] == REFERENCE_SOURCE)]
 
     if realite.empty:
-        print(f"INFO: Aucune donnee de reference trouvee (source='{REFERENCE_SOURCE}').")
         return
 
     # 4. Fusion prévisions vs vérité terrain, par ville et date
@@ -80,7 +76,6 @@ def calculer_fiabilite():
     )
 
     if comparaison.empty:
-        print("INFO: Pas de chevauchement prevision/realite de reference sur la fenetre de 7 jours.")
         return
 
     # 5. Calcul de l'erreur absolue : |Temp_Prévue - Temp_Réelle|
@@ -100,7 +95,6 @@ def calculer_fiabilite():
     # Filtre anti-bruit: évite de classer sur 1 ou 2 jours seulement
     scores = scores[scores['nb_points'] >= MIN_REQUIRED_MATCHES].copy()
     if scores.empty:
-        print("INFO: Donnees insuffisantes apres filtre de fiabilite minimale.")
         return
 
     # Score sur 100 conservé, avec pénalité progressive + facteur confiance lié au volume

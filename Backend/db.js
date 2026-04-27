@@ -19,8 +19,6 @@ const pool = new Pool({
 pool.query('SELECT NOW()', (err) => {
   if (err) {
     console.error('❌ Erreur de connexion à la base de données :', err.stack);
-  } else {
-    console.log('✅ Connecté à la base de données avec succès !');
   }
 });
 
@@ -38,7 +36,6 @@ const getOrCreateVille = async (nom, lat, lon) => {
         'INSERT INTO villes (nom, latitude, longitude) VALUES ($1, $2, $3) RETURNING id',
         [nom, lat, lon]
       );
-      console.log(`✨ Nouvelle ville enregistrée : ${nom}`);
       return insertRes.rows[0].id;
     }
   } catch (err) {
