@@ -144,8 +144,6 @@ app.get('/search/:nom', async (req, res) => {
 
         if (result.rows.length > 0) {
             const villeExistante = result.rows[0];
-            console.log(`✅ Ville trouvée en base : ${villeExistante.nom}`);
-            
             // Vérifier si on a des données fraîches pour AUJOURD'HUI
             const checkData = await pool.query(
                 "SELECT id FROM donnees_meteo WHERE ville_id = $1 AND date_concernee::date = CURRENT_DATE LIMIT 1",
@@ -153,10 +151,7 @@ app.get('/search/:nom', async (req, res) => {
             );
 
             if (checkData.rows.length === 0) {
-                console.log(`⚠️ Données obsolètes pour ${villeExistante.nom}. Lancement d'un fetch d'urgence !`);
                 await fetchAndStoreAllForecasts(villeExistante.id, villeExistante.latitude, villeExistante.longitude);
-            } else {
-                console.log(`✅ Données météo à jour pour ${villeExistante.nom}.`);
             }
 
             return res.json({ 
@@ -166,7 +161,6 @@ app.get('/search/:nom', async (req, res) => {
             });
         }
 
-        console.log(`🔍 Ville non trouvée en base. Recherche via API pour : ${nomVille}`);
         const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(nomVille)}&count=1&language=fr&format=json`;
         const geoRes = await axios.get(geoUrl);
 
@@ -177,7 +171,6 @@ app.get('/search/:nom', async (req, res) => {
         const { latitude, longitude, name } = geoRes.data.results[0];
         const villeId = await getOrCreateVille(name, latitude, longitude);
 
-        console.log(`📥 Lancement du premier fetch pour ${name}...`);
         await fetchAndStoreAllForecasts(villeId, latitude, longitude);
         await fetchAndStoreAllRealData(villeId, latitude, longitude);
 
@@ -318,8 +311,6 @@ app.get('/scores/:villeId', async (req, res) => {
 // ROUTE 5 : Récupérer les coordonnées gps
 app.get('/search-coords', async (req, res) => {
     const { lat, lon } = req.query;
-    console.log(`📍 Reverse Geocoding pour : Lat ${lat}, Lon ${lon}`);
-
     try {
         const geoUrl = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=fr`;
         const response = await axios.get(geoUrl);
@@ -329,7 +320,6 @@ app.get('/search-coords', async (req, res) => {
             return res.status(404).json({ error: 'Ville introuvable' });
         }
 
-        console.log(`🏙️ Ville détectée : ${cityName}`);
         const villeId = await getOrCreateVille(cityName, lat, lon);
 
         const checkData = await pool.query(
@@ -338,7 +328,6 @@ app.get('/search-coords', async (req, res) => {
         );
 
         if (checkData.rows.length === 0) {
-            console.log(`⚠️ Données obsolètes pour ${cityName} (GPS). Lancement d'un fetch d'urgence !`);
             await fetchAndStoreAllForecasts(villeId, lat, lon);
         }
 
@@ -637,8 +626,6 @@ app.get('/hourly', async (req, res) => {
         let hourlyData = [];
         const now = new Date();
 
-        console.log(`📡 Requête Heure par Heure pour la source gagnante : ${source}`);
-
         // --- CAS 1 : OPEN-METEO GAGNE ---
         if (source === 'Open-Meteo') {
             const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,weathercode&timezone=auto&forecast_days=2`;
@@ -760,4 +747,4 @@ app.post('/api/trigger-daily-weather', async (req, res) => {
     }
 });
 
-app.listen(3000, '0.0.0.0', () => console.log("Serveur multi-sources prêt sur port 3000"));
+app.listen(3000, '0.0.0.0');
