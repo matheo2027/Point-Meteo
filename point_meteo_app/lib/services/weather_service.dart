@@ -12,23 +12,17 @@ class CityNotFoundException implements Exception {
 }
 
 class WeatherService {
+  int _asInt(dynamic value, {int fallback = 0}) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? fallback;
+  }
+
   String get baseUrl {
     const overrideUrl = String.fromEnvironment('API_BASE_URL');
     if (overrideUrl.isNotEmpty) return overrideUrl;
 
-    if (kIsWeb) return 'http://localhost:3000';
-
-    switch (defaultTargetPlatform) {
-      case TargetPlatform.android:
-        return 'http://10.0.2.2:3000';
-      case TargetPlatform.iOS:
-      case TargetPlatform.macOS:
-      case TargetPlatform.windows:
-      case TargetPlatform.linux:
-        return 'http://localhost:3000';
-      case TargetPlatform.fuchsia:
-        return 'http://localhost:3000';
-    }
+    return 'https://point-meteo.onrender.com';
   }
 
   static int? lastCityId;
@@ -43,7 +37,7 @@ class WeatherService {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         // ON MÉMORISE L'ID
-        lastCityId = data['id'];
+        lastCityId = _asInt(data['id']);
         lastCityName = data['ville'];
         return data;
       }
@@ -60,7 +54,7 @@ class WeatherService {
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       // ON MÉMORISE L'ID
-      lastCityId = data['id'];
+      lastCityId = _asInt(data['id']);
       lastCityName = data['ville'];
       return data;
     } else if (response.statusCode == 404) {

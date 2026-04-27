@@ -116,6 +116,12 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
+  int _asInt(dynamic value, {int fallback = 0}) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? fallback;
+  }
+
   void _clearSearch() {
     setState(() {
       _cityController.clear();
@@ -179,8 +185,9 @@ class _HomeScreenState extends State<HomeScreen>
 
     try {
       final city = await _weatherService.searchCity(_cityController.text);
-      final scores = await _weatherService.getScores(city['id']);
-      final weather = await _weatherService.getWeather(city['id']);
+      final int cityId = _asInt(city['id']);
+      final scores = await _weatherService.getScores(cityId);
+      final weather = await _weatherService.getWeather(cityId);
 
       String gagnant;
       if (scores.isNotEmpty) {
@@ -439,8 +446,9 @@ class _HomeScreenState extends State<HomeScreen>
 
     int weatherCode = 0;
     if (_bestWeather != null) {
-      weatherCode =
-          _bestWeather!['weathercode'] ?? _bestWeather!['code_meteo'] ?? 0;
+      weatherCode = _asInt(
+        _bestWeather!['weathercode'] ?? _bestWeather!['code_meteo'],
+      );
     }
 
     int currentHour = DateTime.now().hour;
@@ -757,8 +765,10 @@ class _HomeScreenState extends State<HomeScreen>
                                           itemBuilder: (context, index) {
                                             final hourData =
                                                 _hourlyForecast[index];
-                                            final code =
-                                                hourData['code_meteo'] ?? 0;
+                                            final code = _asInt(
+                                              hourData['weathercode'] ??
+                                                  hourData['code_meteo'],
+                                            );
 
                                             // --- NOUVEAU : On vérifie si CETTE heure est la nuit ---
                                             int h = 12;
@@ -881,8 +891,10 @@ class _HomeScreenState extends State<HomeScreen>
                                         child: Column(
                                           children: _dailyForecast
                                               .map((dayData) {
-                                                int dCode =
-                                                    dayData['code_meteo'] ?? 0;
+                                                final dCode = _asInt(
+                                                  dayData['weathercode'] ??
+                                                      dayData['code_meteo'],
+                                                );
                                                 return Padding(
                                                   padding:
                                                       const EdgeInsets.symmetric(
