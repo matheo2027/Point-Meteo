@@ -5,6 +5,7 @@ const sources = [
     require('./services/weatherApiService'),
     require('./services/meteoConceptService')
 ];
+const referenceObservationService = require('./services/referenceObservationService');
 
 // On ajoute code_meteo dans la requête SQL !
 async function saveMeteo(villeId, source, date, temp, code_meteo, type) {
@@ -34,16 +35,42 @@ async function fetchAndStoreAllForecasts(villeId, lat, lon) {
 }
 
 async function fetchAndStoreAllRealData(villeId, lat, lon) {
-    for (const source of sources) {
-        try {
-            const data = await source.fetchHistory(lat, lon);
-            // On passe le code_meteo à la fonction de sauvegarde
-            await saveMeteo(villeId, source.name, data.date, data.temp, data.code_meteo, 'realite');
-            console.log(`   -> ${source.name} (Histoire) : OK`);
-        } catch (err) {
-            console.error(`   ! Erreur Histoire ${source.name}:`, err.message);
-        }
+    try {
+        const data = await referenceObservationService.fetchHistory(lat, lon);
+        await saveMeteo(
+            villeId,
+            referenceObservationService.name,
+            data.date,
+            data.temp,
+            data.code_meteo,
+            'realite'
+        );
+        console.log(`   -> ${referenceObservationService.name} (Référence) : OK`);
+    } catch (err) {
+        console.error(`   ! Erreur Référence ${referenceObservationService.name}:`, err.message);
     }
 }
 
-module.exports = { fetchAndStoreAllForecasts, fetchAndStoreAllRealData };
+async function backfillReferenceRealityForAllCities() {
+    const villes = await pool.query("SELECT id, latitude, longitude FROM villes");
+    for (const v of villes.rows) {
+        await fetchAndStoreAllRealData(v.id, v.latitude, v.longitude);
+    }
+    return villes.rows.length;
+}
+
+async function cleanupLegacyRealData() {
+    const result = await pool.query(
+        `DELETE FROM donnees_meteo
+         WHERE type = 'realite' AND source <> $1`,
+        [referenceObservationService.name]
+    );
+    return result.rowCount;
+}
+
+module.exports = {
+    fetchAndStoreAllForecasts,
+    fetchAndStoreAllRealData,
+    backfillReferenceRealityForAllCities,
+    cleanupLegacyRealData
+};

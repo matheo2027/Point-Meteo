@@ -1,6 +1,6 @@
 Pour tester
 node server.js
-https://localhost:3000/search/Toulouse (ou une autre ville)
+http://localhost:3000/search/Toulouse (ou une autre ville)
 
 Pour vérifier :
 psql -U postgres -d meteo_db
