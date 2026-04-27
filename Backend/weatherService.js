@@ -13,7 +13,10 @@ async function saveMeteo(villeId, source, date, temp, code_meteo, type) {
         `INSERT INTO donnees_meteo (ville_id, source, temp, code_meteo, date_concernee, type)
          VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (ville_id, source, date_concernee, type) 
-         DO UPDATE SET temp = EXCLUDED.temp, code_meteo = EXCLUDED.code_meteo`,
+         DO UPDATE SET
+           temp = EXCLUDED.temp,
+           code_meteo = EXCLUDED.code_meteo,
+           date_enregistrement = NOW()`,
         [villeId, source, temp, code_meteo || 0, date, type]
     );
 }

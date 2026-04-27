@@ -1,8 +1,9 @@
 # --- NODE.JS (Backend) ---
 # Ne jamais push les bibliothèques téléchargées
 Backend/node_modules/
-# Ne jamais push tes accès à la base de données !
-Backend/.env
+# Ne jamais push tes accès à la base de données ou variables secrètes
+**/.env
+**/.env.*
 # Logs
 Backend/*.log
 
@@ -18,7 +19,6 @@ Backend/*.log
 __pycache__/
 *.py[cod]
 .venv/
-Comparaison_python/.env
 
 # --- OS & IDE ---
 .DS_Store

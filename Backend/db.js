@@ -2,12 +2,26 @@ const { Pool } = require('pg');
 require('dotenv').config();
 
 // Configuration de la connexion
+const connectionString = process.env.DATABASE_URL || (
+  process.env.DB_USER &&
+  process.env.DB_PASSWORD &&
+  process.env.DB_HOST &&
+  process.env.DB_NAME
+    ? `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME}`
+    : undefined
+);
+
 const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT,
+  connectionString,
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
+});
+
+pool.query('SELECT NOW()', (err) => {
+  if (err) {
+    console.error('❌ Erreur de connexion à la base de données :', err.stack);
+  } else {
+    console.log('✅ Connecté à la base de données avec succès !');
+  }
 });
 
 // Fonction magique pour gérer les villes automatiquement

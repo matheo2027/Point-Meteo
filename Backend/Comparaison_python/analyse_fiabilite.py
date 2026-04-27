@@ -31,6 +31,13 @@ MIN_REQUIRED_MATCHES = int(os.getenv('MIN_REQUIRED_MATCHES', '3'))
 
 
 def _db_url():
+    database_url = os.getenv('DATABASE_URL')
+    if database_url:
+        if 'sslmode=' not in database_url:
+            separator = '&' if '?' in database_url else '?'
+            database_url = f'{database_url}{separator}sslmode=require'
+        return database_url
+
     user = os.getenv('DB_USER', 'postgres')
     password = os.getenv('DB_PASSWORD', '')
     host = os.getenv('DB_HOST', 'localhost')
