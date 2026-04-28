@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:async';
-import 'dart:io';
 import 'package:http/http.dart' as http;
 
 class CityNotFoundException implements Exception {
@@ -42,9 +41,9 @@ class WeatherService {
       return response;
     } on TimeoutException catch (_) {
       throw BackendUnavailableException();
-    } on SocketException catch (_) {
-      throw BackendUnavailableException();
     } on http.ClientException catch (_) {
+      throw BackendUnavailableException();
+    } catch (_) {
       throw BackendUnavailableException();
     }
   }
