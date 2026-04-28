@@ -1,33 +1,25 @@
-name: Daily Weather Maintenance
+name: Daily Reliability Rebuild
 
 on:
   schedule:
-    - cron: '0 */3 * * *'
     - cron: '14 0 * * *'
   workflow_dispatch:
 
 jobs:
-  trigger-maintenance:
+  trigger-reliability-rebuild:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Trigger backend maintenance
+      - name: Trigger reliability rebuild
         env:
           BACKEND_URL: https://point-meteo.onrender.com
           ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
-          SCHEDULE: ${{ github.event.schedule }}
         run: |
           if [ -z "$ADMIN_TOKEN" ]; then
             echo "ADMIN_TOKEN secret is missing"
             exit 1
           fi
 
-          if [ "$SCHEDULE" = "14 0 * * *" ]; then
-            echo "Running daily full maintenance"
-          else
-            echo "Running forecast refresh maintenance"
-          fi
-
-          curl -sS -X POST "$BACKEND_URL/api/trigger-daily-weather" \
+          curl -fsS -X POST "$BACKEND_URL/admin/reliability/rebuild" \
             -H "x-admin-token: $ADMIN_TOKEN" \
             -H "Content-Type: application/json"

@@ -1,0 +1,25 @@
+name: Forecast Refresh
+
+on:
+  schedule:
+    - cron: '0 */4 * * *'
+  workflow_dispatch:
+
+jobs:
+  trigger-forecast-refresh:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger forecast refresh
+        env:
+          BACKEND_URL: https://point-meteo.onrender.com
+          ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+        run: |
+          if [ -z "$ADMIN_TOKEN" ]; then
+            echo "ADMIN_TOKEN secret is missing"
+            exit 1
+          fi
+
+          curl -fsS -X POST "$BACKEND_URL/api/trigger-forecast-refresh" \
+            -H "x-admin-token: $ADMIN_TOKEN" \
+            -H "Content-Type: application/json"
