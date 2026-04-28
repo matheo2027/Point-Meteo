@@ -72,6 +72,18 @@ async function runDailyWeatherMaintenance() {
     };
 }
 
+async function runForecastRefreshMaintenance() {
+    const villes = await pool.query('SELECT id, latitude, longitude FROM villes');
+
+    for (const ville of villes.rows) {
+        await fetchAndStoreAllForecasts(ville.id, ville.latitude, ville.longitude);
+    }
+
+    return {
+        processedCities: villes.rows.length
+    };
+}
+
 function getCachedProviderLatency(source) {
         const cached = providerLatencyCache.get(source);
         if (!cached) return null;
@@ -754,6 +766,33 @@ app.post('/api/trigger-daily-weather', async (req, res) => {
         
         const errorMessage = error instanceof Error ? error.message : JSON.stringify(error) || String(error);
         
+        res.status(500).json({ error: errorMessage });
+    }
+});
+
+// ROUTE CRON EXTERNE : refresh des prévisions uniquement
+app.post('/api/trigger-forecast-refresh', async (req, res) => {
+    if (!process.env.ADMIN_TOKEN) {
+        return res.status(503).json({
+            error: 'ADMIN_TOKEN non configuré. Route désactivée.'
+        });
+    }
+
+    if (!checkAdminToken(req)) {
+        return res.status(403).json({ error: 'Accès non autorisé' });
+    }
+
+    try {
+        const result = await runForecastRefreshMaintenance();
+        res.json({
+            status: 'ok',
+            ...result
+        });
+    } catch (error) {
+        console.error('❌ Erreur refresh prévisions :', error);
+
+        const errorMessage = error instanceof Error ? error.message : JSON.stringify(error) || String(error);
+
         res.status(500).json({ error: errorMessage });
     }
 });
