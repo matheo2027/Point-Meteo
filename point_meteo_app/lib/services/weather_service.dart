@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:async';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 
 class CityNotFoundException implements Exception {
@@ -9,6 +11,18 @@ class CityNotFoundException implements Exception {
   String toString() => 'Ville introuvable: $cityName';
 }
 
+class BackendUnavailableException implements Exception {
+  final String message;
+
+  BackendUnavailableException([
+    this.message =
+        'Le serveur météo est indisponible pour le moment. Réessaie dans quelques instants.',
+  ]);
+
+  @override
+  String toString() => message;
+}
+
 class WeatherService {
   int _asInt(dynamic value, {int fallback = 0}) {
     if (value is int) return value;
@@ -16,10 +30,26 @@ class WeatherService {
     return int.tryParse(value?.toString() ?? '') ?? fallback;
   }
 
-  String get baseUrl {
-    const overrideUrl = String.fromEnvironment('API_BASE_URL');
-    if (overrideUrl.isNotEmpty) return overrideUrl;
+  Future<http.Response> _get(
+    Uri uri, {
+    Duration timeout = const Duration(seconds: 8),
+  }) async {
+    try {
+      final response = await http.get(uri).timeout(timeout);
+      if (response.statusCode >= 500) {
+        throw BackendUnavailableException();
+      }
+      return response;
+    } on TimeoutException catch (_) {
+      throw BackendUnavailableException();
+    } on SocketException catch (_) {
+      throw BackendUnavailableException();
+    } on http.ClientException catch (_) {
+      throw BackendUnavailableException();
+    }
+  }
 
+  String get baseUrl {
     return 'https://point-meteo.onrender.com';
   }
 
@@ -29,9 +59,10 @@ class WeatherService {
   Future<Map<String, dynamic>> searchByCoords(double lat, double lon) async {
     final String urlString = '$baseUrl/search-coords?lat=$lat&lon=$lon';
     try {
-      final response = await http
-          .get(Uri.parse(urlString))
-          .timeout(const Duration(seconds: 5));
+      final response = await _get(
+        Uri.parse(urlString),
+        timeout: const Duration(seconds: 5),
+      );
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         // ON MÉMORISE L'ID
@@ -40,13 +71,15 @@ class WeatherService {
         return data;
       }
       throw Exception('Erreur géoloc');
+    } on BackendUnavailableException {
+      rethrow;
     } catch (e) {
       throw Exception('Erreur réseau');
     }
   }
 
   Future<Map<String, dynamic>> searchCity(String cityName) async {
-    final response = await http.get(
+    final response = await _get(
       Uri.parse('$baseUrl/search/${Uri.encodeComponent(cityName)}'),
     );
     if (response.statusCode == 200) {
@@ -63,9 +96,7 @@ class WeatherService {
   }
 
   Future<List<dynamic>> getWeather(int villeId) async {
-    final response = await http
-        .get(Uri.parse('$baseUrl/weather/$villeId'))
-        .timeout(const Duration(seconds: 8));
+    final response = await _get(Uri.parse('$baseUrl/weather/$villeId'));
     if (response.statusCode == 200) {
       return json.decode(response.body);
     }
@@ -73,9 +104,7 @@ class WeatherService {
   }
 
   Future<List<dynamic>> getScores(int villeId) async {
-    final response = await http
-        .get(Uri.parse('$baseUrl/scores/$villeId'))
-        .timeout(const Duration(seconds: 8));
+    final response = await _get(Uri.parse('$baseUrl/scores/$villeId'));
     if (response.statusCode == 200) {
       return json.decode(response.body);
     }
@@ -83,9 +112,7 @@ class WeatherService {
   }
 
   Future<List<dynamic>> getGlobalScores() async {
-    final response = await http
-        .get(Uri.parse('$baseUrl/scores/global'))
-        .timeout(const Duration(seconds: 8));
+    final response = await _get(Uri.parse('$baseUrl/scores/global'));
     if (response.statusCode == 200) {
       return json.decode(response.body);
     }
@@ -97,9 +124,9 @@ class WeatherService {
     double lon,
     String source,
   ) async {
-    final response = await http
-        .get(Uri.parse('$baseUrl/hourly?lat=$lat&lon=$lon&source=$source'))
-        .timeout(const Duration(seconds: 8));
+    final response = await _get(
+      Uri.parse('$baseUrl/hourly?lat=$lat&lon=$lon&source=$source'),
+    );
 
     if (response.statusCode == 200) {
       return json.decode(response.body);
@@ -110,9 +137,9 @@ class WeatherService {
 
   Future<Map<String, dynamic>> getProviderKpi(String source) async {
     final encodedSource = Uri.encodeComponent(source);
-    final response = await http
-        .get(Uri.parse('$baseUrl/provider-kpi/$encodedSource'))
-        .timeout(const Duration(seconds: 8));
+    final response = await _get(
+      Uri.parse('$baseUrl/provider-kpi/$encodedSource'),
+    );
 
     if (response.statusCode == 200) {
       return json.decode(response.body) as Map<String, dynamic>;
@@ -121,9 +148,10 @@ class WeatherService {
   }
 
   Future<Map<String, dynamic>> getRainfallStudy(int villeId) async {
-    final response = await http
-        .get(Uri.parse('$baseUrl/rainfall-study/$villeId'))
-        .timeout(const Duration(seconds: 10));
+    final response = await _get(
+      Uri.parse('$baseUrl/rainfall-study/$villeId'),
+      timeout: const Duration(seconds: 10),
+    );
 
     if (response.statusCode == 200) {
       return json.decode(response.body) as Map<String, dynamic>;

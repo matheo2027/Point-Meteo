@@ -78,9 +78,13 @@ class _ProviderKpiScreenState extends State<ProviderKpiScreen> {
           }
 
           if (snapshot.hasError) {
+            final error = snapshot.error;
+            final bool backendDown = error is BackendUnavailableException;
             return ErrorStateView(
-              title: 'KPI indisponibles',
-              message: 'Impossible de charger les KPI du provider.',
+              title: backendDown ? 'Serveur indisponible' : 'KPI indisponibles',
+              message: backendDown
+                  ? error.toString()
+                  : 'Impossible de charger les KPI du provider.',
               onRetry: () => setState(() {}),
             );
           }

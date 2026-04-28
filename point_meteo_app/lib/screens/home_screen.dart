@@ -144,11 +144,13 @@ class _HomeScreenState extends State<HomeScreen>
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied)
+        if (permission == LocationPermission.denied) {
           throw Exception("Permissions refusées");
+        }
       }
-      if (permission == LocationPermission.deniedForever)
+      if (permission == LocationPermission.deniedForever) {
         throw Exception("Permissions bloquées définitivement");
+      }
 
       Position position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
@@ -168,6 +170,13 @@ class _HomeScreenState extends State<HomeScreen>
       _rechercherLeMeilleur();
     } catch (e) {
       if (!mounted) return;
+      if (e is BackendUnavailableException) {
+        setState(() {
+          _isLoading = false;
+          _homeErrorMessage = e.toString();
+        });
+        return;
+      }
       setState(() {
         _isLoading = false;
         _homeErrorMessage = "Geolocalisation impossible: $e";
@@ -284,6 +293,14 @@ class _HomeScreenState extends State<HomeScreen>
         return;
       }
 
+      if (e is BackendUnavailableException) {
+        setState(() {
+          _isLoading = false;
+          _homeErrorMessage = e.toString();
+        });
+        return;
+      }
+
       setState(() {
         _isLoading = false;
         _homeErrorMessage = "Erreur de recherche: $e";
@@ -309,10 +326,12 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   IconData _getWeatherIcon(int weatherCode, {bool isNight = false}) {
-    if (weatherCode == 0)
+    if (weatherCode == 0) {
       return isNight ? Icons.nightlight_round : Icons.wb_sunny;
-    if (weatherCode == 1 || weatherCode == 2)
+    }
+    if (weatherCode == 1 || weatherCode == 2) {
       return isNight ? Icons.nights_stay : Icons.cloud_queue;
+    }
     if (weatherCode == 3) return Icons.cloud;
     if (weatherCode == 45 || weatherCode == 48) return Icons.foggy;
     if (weatherCode >= 51 && weatherCode <= 67) return Icons.water_drop;
@@ -323,10 +342,12 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Color _getWeatherIconColor(int weatherCode, {bool isNight = false}) {
-    if (weatherCode == 0)
+    if (weatherCode == 0) {
       return isNight ? Colors.indigo.shade200 : Colors.orangeAccent;
-    if (weatherCode == 1 || weatherCode == 2)
+    }
+    if (weatherCode == 1 || weatherCode == 2) {
       return isNight ? Colors.indigo.shade200 : Colors.white;
+    }
     if (weatherCode >= 51 && weatherCode <= 67) return Colors.lightBlueAccent;
     if (weatherCode >= 71 && weatherCode <= 77) return Colors.white;
     if (weatherCode >= 95 && weatherCode <= 99) return Colors.yellowAccent;

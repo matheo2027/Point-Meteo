@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/home_screen.dart';
+import 'screens/map_screen.dart';
 import 'screens/podium_screen.dart';
 import 'screens/settings_screen.dart';
 
@@ -31,7 +32,7 @@ class PointMeteoApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: themeNotifier,
-      builder: (_, ThemeMode currentMode, __) {
+      builder: (context, ThemeMode currentMode, child) {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
           title: 'Point Météo',
@@ -60,19 +61,33 @@ class _MainNavigationState extends State<MainNavigation> {
 
   final List<Widget> _pages = [
     const HomeScreen(),
+    const MapScreen(),
     const PodiumScreen(),
     const SettingsScreen(),
   ];
 
   @override
   Widget build(BuildContext context) {
+    final bottomNavBackground = Theme.of(context).brightness == Brightness.dark
+        ? Colors.blueGrey.shade900
+        : Colors.blueGrey.shade900;
+
     return Scaffold(
       body: IndexedStack(index: _currentIndex, children: _pages),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) => setState(() => _currentIndex = index),
+        type: BottomNavigationBarType.fixed,
+        backgroundColor: bottomNavBackground,
+        selectedItemColor: Colors.white,
+        unselectedItemColor: Colors.white70,
+        showUnselectedLabels: true,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.wb_sunny), label: "Météo"),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.map_outlined),
+            label: "Carte",
+          ),
           BottomNavigationBarItem(
             icon: Icon(Icons.leaderboard),
             label: "Podium",
