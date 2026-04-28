@@ -14,6 +14,17 @@ const { exec } = require('child_process');
 
 const app = express();
 app.use(express.json());
+app.use((req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-admin-token');
+
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(204);
+    }
+
+    next();
+});
 
 const REFERENCE_SOURCE = process.env.REFERENCE_SOURCE || 'Reference-Obs';
 const REFERENCE_LATENCY_CACHE_TTL_MS = parseInt(
@@ -747,4 +758,5 @@ app.post('/api/trigger-daily-weather', async (req, res) => {
     }
 });
 
-app.listen(3000, '0.0.0.0');
+const port = process.env.PORT || 3000;
+app.listen(port, '0.0.0.0');

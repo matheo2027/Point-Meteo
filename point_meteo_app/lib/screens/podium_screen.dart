@@ -136,9 +136,15 @@ class _PodiumScreenState extends State<PodiumScreen> {
                 }
 
                 if (snapshot.hasError) {
+                  final error = snapshot.error;
+                  final bool backendDown = error is BackendUnavailableException;
                   return ErrorStateView(
-                    title: 'Erreur de chargement',
-                    message: 'Impossible de recuperer les scores.',
+                    title: backendDown
+                        ? 'Serveur indisponible'
+                        : 'Erreur de chargement',
+                    message: backendDown
+                        ? error.toString()
+                        : 'Impossible de recuperer les scores.',
                     onRetry: () {
                       setState(() {
                         _refreshScores();

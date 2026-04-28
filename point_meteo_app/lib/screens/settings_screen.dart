@@ -233,7 +233,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: const Text("Mode Sombre"),
             value: _isDarkMode,
             onChanged: _toggleTheme,
-            activeColor: Colors.blueAccent,
+            activeThumbColor: Colors.blueAccent,
           ),
 
           const Divider(height: 40),
