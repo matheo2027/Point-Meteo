@@ -27,7 +27,6 @@ REFERENCE_SOURCE = os.getenv('REFERENCE_SOURCE', 'Reference-Obs')
 # Score sur 100 conservé, mais plus progressif qu'un simple "-10 par degré"
 SCORE_PER_DEGREE = float(os.getenv('SCORE_PER_DEGREE', '6.0'))
 FULL_CONFIDENCE_DAYS = int(os.getenv('FULL_CONFIDENCE_DAYS', '7'))
-MIN_REQUIRED_MATCHES = int(os.getenv('MIN_REQUIRED_MATCHES', '3'))
 
 
 def _db_url():
@@ -48,6 +47,10 @@ def _db_url():
 
 engine = create_engine(_db_url())
 
+
+def _log(message):
+    print(f'[reliability] {message}')
+
 def calculer_fiabilite():
     # 2. On charge tout en mémoire avec une seule requête SQL
     query = """
@@ -57,14 +60,20 @@ def calculer_fiabilite():
     """
     df = pd.read_sql(query, engine)
 
+    _log(f'Lignes chargées sur 7 jours: {len(df)}')
+
     if df.empty:
+        _log('Aucune donnée météo récente, aucun score ne peut être calculé.')
         return
 
     # 3. On sépare Prévisions et Réalité (référence indépendante)
     previsions = df[df['type'] == 'prevision']
     realite = df[(df['type'] == 'realite') & (df['source'] == REFERENCE_SOURCE)]
 
+    _log(f'Prévisions: {len(previsions)}, réalité de référence: {len(realite)}')
+
     if realite.empty:
+        _log(f'Aucune ligne de réalité trouvée pour la source de référence "{REFERENCE_SOURCE}".')
         return
 
     # 4. Fusion prévisions vs vérité terrain, par ville et date
@@ -75,9 +84,11 @@ def calculer_fiabilite():
         suffixes=('_prev', '_reel')
     )
 
-    if comparaison.empty:
-        return
+    _log(f'Correspondances prévision/réalité: {len(comparaison)}')
 
+    if comparaison.empty:
+        _log('Aucune prévision ne correspond à une réalité sur la même date.')
+        return
     # 5. Calcul de l'erreur absolue : |Temp_Prévue - Temp_Réelle|
     comparaison['erreur'] = (comparaison['temp_prev'] - comparaison['temp_reel']).abs()
 
@@ -92,9 +103,14 @@ def calculer_fiabilite():
         .reset_index()
     )
 
-    # Filtre anti-bruit: évite de classer sur 1 ou 2 jours seulement
-    scores = scores[scores['nb_points'] >= MIN_REQUIRED_MATCHES].copy()
+    # On garde les jours réellement disponibles, avec une limite de 7 jours maximum.
+    scores = scores.copy()
+    scores['nb_points'] = scores['nb_points'].clip(upper=FULL_CONFIDENCE_DAYS)
+
+    _log(f'Combinaisons Ville/Source retenues: {len(scores)}')
+
     if scores.empty:
+        _log('Aucune combinaison Ville/Source exploitable.')
         return
 
     # Score sur 100 conservé, avec pénalité progressive + facteur confiance lié au volume
@@ -118,7 +134,7 @@ def calculer_fiabilite():
                 "score": float(row['score'])
             })
 
-    print(f"Analyse terminée pour {len(scores)} combinaisons Ville/Source.")
+    _log(f'Analyse terminée pour {len(scores)} combinaisons Ville/Source.')
 
 if __name__ == "__main__":
     calculer_fiabilite()

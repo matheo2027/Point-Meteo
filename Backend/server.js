@@ -10,7 +10,7 @@ const {
     backfillReferenceRealityForAllCities,
     cleanupLegacyRealData
 } = require('./weatherService');
-const { exec } = require('child_process');
+const { execFile } = require('child_process');
 
 const app = express();
 app.use(express.json());
@@ -35,10 +35,12 @@ const SCORE_PER_DEGREE = parseFloat(process.env.SCORE_PER_DEGREE || '6.0');
 const KPI_CONFIDENCE_HIGH = parseInt(process.env.KPI_CONFIDENCE_HIGH || '120', 10);
 const KPI_CONFIDENCE_MEDIUM = parseInt(process.env.KPI_CONFIDENCE_MEDIUM || '50', 10);
 const providerLatencyCache = new Map();
+const RELIABILITY_SCRIPT_PATH = path.join(__dirname, 'Comparaison_python', 'analyse_fiabilite.py');
+const PYTHON_BIN = process.env.PYTHON_BIN || (process.platform === 'win32' ? 'python' : 'python3');
 
 function runReliabilityAnalysis() {
     return new Promise((resolve, reject) => {
-        exec('python ./Comparaison_python/analyse_fiabilite.py', (error, stdout, stderr) => {
+        execFile(PYTHON_BIN, [RELIABILITY_SCRIPT_PATH], { cwd: __dirname }, (error, stdout, stderr) => {
             if (error) {
                 return reject(new Error(stderr || error.message));
             }
@@ -47,13 +49,7 @@ function runReliabilityAnalysis() {
     });
 }
 
-function checkAdminToken(req) {
-    const expected = process.env.ADMIN_TOKEN;
-    if (!expected) return false;
-    return req.headers['x-admin-token'] === expected;
-}
-
-async function runDailyWeatherMaintenance() {
+async function refreshReliabilityInputs() {
     const villes = await pool.query('SELECT id, latitude, longitude FROM villes');
 
     for (const ville of villes.rows) {
@@ -64,10 +60,21 @@ async function runDailyWeatherMaintenance() {
         await fetchAndStoreAllRealData(ville.id, ville.latitude, ville.longitude);
     }
 
+    return villes.rows.length;
+}
+
+function checkAdminToken(req) {
+    const expected = process.env.ADMIN_TOKEN;
+    if (!expected) return false;
+    return req.headers['x-admin-token'] === expected;
+}
+
+async function runDailyWeatherMaintenance() {
+    const processedCities = await refreshReliabilityInputs();
     const analysisOutput = await runReliabilityAnalysis();
 
     return {
-        processedCities: villes.rows.length,
+        processedCities,
         analysisOutput: analysisOutput.trim()
     };
 }
@@ -727,12 +734,14 @@ app.post('/admin/reliability/rebuild', async (req, res) => {
         }
 
     try {
+        const refreshedCities = await refreshReliabilityInputs();
         const deletedRows = await cleanupLegacyRealData();
         const processedCities = await backfillReferenceRealityForAllCities();
         const analysisOutput = await runReliabilityAnalysis();
 
         res.json({
             status: 'ok',
+            refreshedCities,
             deletedLegacyRealiteRows: deletedRows,
             backfilledCities: processedCities,
             analysisOutput: analysisOutput.trim()
