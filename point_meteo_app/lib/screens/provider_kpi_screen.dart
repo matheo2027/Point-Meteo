@@ -26,42 +26,49 @@ class _ProviderKpiScreenState extends State<ProviderKpiScreen> {
     required String value,
     IconData? icon,
   }) {
+    final semanticsLabel = icon == null ? '$title, $value' : '$title, $value';
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              if (icon != null) ...[
-                Icon(
-                  icon,
-                  size: 16,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                const SizedBox(width: 6),
-              ],
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+      child: Semantics(
+        label: semanticsLabel,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                if (icon != null) ...[
+                  ExcludeSemantics(
+                    child: Icon(
+                      icon,
+                      size: 16,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                ],
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
-          ),
-        ],
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -235,18 +242,23 @@ class _ProviderKpiScreenState extends State<ProviderKpiScreen> {
                   ),
                   child: Row(
                     children: [
-                      Icon(
-                        confidenceLabel == 'Elevee'
-                            ? Icons.verified_user
-                            : confidenceLabel == 'Moyenne'
-                            ? Icons.rule_folder
-                            : Icons.warning_amber_rounded,
-                        color: confidenceLabel == 'Elevee'
-                            ? Colors.green
-                            : confidenceLabel == 'Moyenne'
-                            ? Colors.orange
-                            : Colors.redAccent,
-                        size: 18,
+                      Semantics(
+                        label: 'Niveau de confiance $confidenceLabel',
+                        child: ExcludeSemantics(
+                          child: Icon(
+                            confidenceLabel == 'Elevee'
+                                ? Icons.verified_user
+                                : confidenceLabel == 'Moyenne'
+                                ? Icons.rule_folder
+                                : Icons.warning_amber_rounded,
+                            color: confidenceLabel == 'Elevee'
+                                ? Colors.green
+                                : confidenceLabel == 'Moyenne'
+                                ? Colors.orange
+                                : Colors.redAccent,
+                            size: 18,
+                          ),
+                        ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(

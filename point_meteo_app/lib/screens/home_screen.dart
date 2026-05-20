@@ -4,6 +4,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../main.dart';
+import '../services/favorite_weather_widget_service.dart';
 import 'search_not_found_screen.dart';
 import '../widgets/state_views.dart';
 
@@ -75,12 +76,71 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
+  String _buildUpdatedAtLabel() {
+    final now = DateTime.now();
+    final hour = now.hour.toString().padLeft(2, '0');
+    final minute = now.minute.toString().padLeft(2, '0');
+    return 'MAJ $hour:$minute';
+  }
+
+  Future<void> _syncFavoriteWidgetSnapshot() async {
+    final cityName = _cityController.text.trim();
+    if (cityName.isEmpty || _bestWeather == null || _bestSourceName == null) {
+      return;
+    }
+
+    final tempValue = _convertTemp(
+      _bestWeather!['temp'],
+      isCelsiusNotifier.value,
+    );
+    final unit = isCelsiusNotifier.value ? 'C' : 'F';
+    final displayTemp = '$tempValue°$unit';
+    final weatherCode = _asInt(
+      _bestWeather!['weathercode'] ?? _bestWeather!['code_meteo'],
+    );
+
+    await FavoriteWeatherWidgetService.saveFavoriteSnapshot(
+      cityName: cityName,
+      displayTemp: displayTemp,
+      weatherCode: weatherCode,
+      sourceName: _bestSourceName!,
+      updatedAtLabel: _buildUpdatedAtLabel(),
+    );
+  }
+
+  Future<void> _syncLocationWidgetSnapshot() async {
+    final cityName = _cityController.text.trim();
+    if (cityName.isEmpty || _bestWeather == null || _bestSourceName == null) {
+      return;
+    }
+
+    final tempValue = _convertTemp(
+      _bestWeather!['temp'],
+      isCelsiusNotifier.value,
+    );
+    final unit = isCelsiusNotifier.value ? 'C' : 'F';
+    final displayTemp = '$tempValue°$unit';
+    final weatherCode = _asInt(
+      _bestWeather!['weathercode'] ?? _bestWeather!['code_meteo'],
+    );
+
+    await FavoriteWeatherWidgetService.saveLocationSnapshot(
+      cityName: cityName,
+      displayTemp: displayTemp,
+      weatherCode: weatherCode,
+      sourceName: _bestSourceName!,
+      updatedAtLabel: _buildUpdatedAtLabel(),
+    );
+  }
+
   Future<void> _toggleFavorite() async {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
     final cityName = _cityController.text.trim();
 
     if (cityName.isEmpty) return;
+
+    final willBeFavorite = !_favoriteCities.contains(cityName);
 
     setState(() {
       if (_favoriteCities.contains(cityName)) {
@@ -98,6 +158,12 @@ class _HomeScreenState extends State<HomeScreen>
       }
     });
     await prefs.setStringList('favorites', _favoriteCities);
+
+    if (willBeFavorite) {
+      await _syncFavoriteWidgetSnapshot();
+    } else {
+      await FavoriteWeatherWidgetService.clearSnapshotIfCurrentCity(cityName);
+    }
   }
 
   Future<void> _removeFavoriteFromList(String city) async {
@@ -167,7 +233,9 @@ class _HomeScreenState extends State<HomeScreen>
       setState(() {
         _cityController.text = response['ville'];
       });
-      _rechercherLeMeilleur();
+      _rechercherLeMeilleur(
+        widgetSnapshotMode: FavoriteWeatherWidgetService.widgetSourceLocation,
+      );
     } catch (e) {
       if (!mounted) return;
       if (e is BackendUnavailableException) {
@@ -184,7 +252,7 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  Future<void> _rechercherLeMeilleur() async {
+  Future<void> _rechercherLeMeilleur({String? widgetSnapshotMode}) async {
     if (_cityController.text.isEmpty) return;
     setState(() {
       _isLoading = true;
@@ -276,6 +344,13 @@ class _HomeScreenState extends State<HomeScreen>
         _cityController.text = city['ville'];
         _isLoading = false;
       });
+
+      if (widgetSnapshotMode ==
+          FavoriteWeatherWidgetService.widgetSourceLocation) {
+        await _syncLocationWidgetSnapshot();
+      } else if (_isFavorite) {
+        await _syncFavoriteWidgetSnapshot();
+      }
     } catch (e) {
       if (!mounted) return;
       if (e is CityNotFoundException) {
@@ -341,6 +416,22 @@ class _HomeScreenState extends State<HomeScreen>
     return Icons.wb_cloudy;
   }
 
+  String _describeWeatherCode(int weatherCode, {bool isNight = false}) {
+    if (weatherCode == 0) {
+      return isNight ? 'ciel dégagé la nuit' : 'ensoleillé';
+    }
+    if (weatherCode == 1 || weatherCode == 2) {
+      return isNight ? 'nuages et éclaircies la nuit' : 'partiellement nuageux';
+    }
+    if (weatherCode == 3) return 'nuageux';
+    if (weatherCode == 45 || weatherCode == 48) return 'brouillard';
+    if (weatherCode >= 51 && weatherCode <= 67) return 'pluie';
+    if (weatherCode >= 71 && weatherCode <= 77) return 'neige';
+    if (weatherCode >= 80 && weatherCode <= 82) return 'averses';
+    if (weatherCode >= 95 && weatherCode <= 99) return 'orage';
+    return 'conditions météo inconnues';
+  }
+
   Color _getWeatherIconColor(int weatherCode, {bool isNight = false}) {
     if (weatherCode == 0) {
       return isNight ? Colors.indigo.shade200 : Colors.orangeAccent;
@@ -373,6 +464,13 @@ class _HomeScreenState extends State<HomeScreen>
     if (delta > 0.1) return Icons.north_east;
     if (delta < -0.1) return Icons.south_east;
     return Icons.trending_flat;
+  }
+
+  String _describeTrend(double delta, bool isCelsius) {
+    final formattedDelta = _formatTrendDelta(delta, isCelsius);
+    if (delta > 0.1) return 'température en hausse de $formattedDelta';
+    if (delta < -0.1) return 'température en baisse de $formattedDelta';
+    return 'température stable sur les 3 prochaines heures';
   }
 
   Color _getTrendColor(double delta) {
@@ -591,15 +689,22 @@ class _HomeScreenState extends State<HomeScreen>
                                 child: Column(
                                   children: [
                                     const SizedBox(height: 10),
-                                    Icon(
-                                          _getWeatherIcon(
-                                            weatherCode,
-                                            isNight: isCurrentlyNight,
-                                          ),
-                                          size: 100,
-                                          color: _getWeatherIconColor(
-                                            weatherCode,
-                                            isNight: isCurrentlyNight,
+                                    Semantics(
+                                          label:
+                                              'Icône météo: ${_describeWeatherCode(weatherCode, isNight: isCurrentlyNight)}',
+                                          image: true,
+                                          child: ExcludeSemantics(
+                                            child: Icon(
+                                              _getWeatherIcon(
+                                                weatherCode,
+                                                isNight: isCurrentlyNight,
+                                              ),
+                                              size: 100,
+                                              color: _getWeatherIconColor(
+                                                weatherCode,
+                                                isNight: isCurrentlyNight,
+                                              ),
+                                            ),
                                           ),
                                         )
                                         .animate()
@@ -750,12 +855,21 @@ class _HomeScreenState extends State<HomeScreen>
                                               child: Row(
                                                 mainAxisSize: MainAxisSize.min,
                                                 children: [
-                                                  Icon(
-                                                    _getTrendIcon(trend3h),
-                                                    color: _getTrendColor(
+                                                  Semantics(
+                                                    label: _describeTrend(
                                                       trend3h,
+                                                      isCelsius,
                                                     ),
-                                                    size: 18,
+                                                    image: true,
+                                                    child: ExcludeSemantics(
+                                                      child: Icon(
+                                                        _getTrendIcon(trend3h),
+                                                        color: _getTrendColor(
+                                                          trend3h,
+                                                        ),
+                                                        size: 18,
+                                                      ),
+                                                    ),
                                                   ),
                                                   const SizedBox(width: 6),
                                                   Text(
@@ -834,18 +948,26 @@ class _HomeScreenState extends State<HomeScreen>
                                                       const SizedBox(
                                                         height: 10,
                                                       ),
-                                                      Icon(
-                                                        _getWeatherIcon(
-                                                          code,
-                                                          isNight: isNightHour,
-                                                        ),
-                                                        color:
-                                                            _getWeatherIconColor(
+                                                      Semantics(
+                                                        label:
+                                                            'Prévision horaire: ${_describeWeatherCode(code, isNight: isNightHour)} à ${formatTime(hourData['time'])}',
+                                                        image: true,
+                                                        child: ExcludeSemantics(
+                                                          child: Icon(
+                                                            _getWeatherIcon(
                                                               code,
                                                               isNight:
                                                                   isNightHour,
                                                             ),
-                                                        size: 30,
+                                                            color:
+                                                                _getWeatherIconColor(
+                                                                  code,
+                                                                  isNight:
+                                                                      isNightHour,
+                                                                ),
+                                                            size: 30,
+                                                          ),
+                                                        ),
                                                       ),
                                                       const SizedBox(
                                                         height: 10,
@@ -939,17 +1061,25 @@ class _HomeScreenState extends State<HomeScreen>
                                                               ),
                                                         ),
                                                       ),
-                                                      Icon(
-                                                        _getWeatherIcon(
-                                                          dCode,
-                                                          isNight: false,
-                                                        ),
-                                                        color:
-                                                            _getWeatherIconColor(
+                                                      Semantics(
+                                                        label:
+                                                            'Prévision journalière: ${_describeWeatherCode(dCode)} pour ${_formatDate(dayData['date_concernee'].toString())}',
+                                                        image: true,
+                                                        child: ExcludeSemantics(
+                                                          child: Icon(
+                                                            _getWeatherIcon(
                                                               dCode,
                                                               isNight: false,
                                                             ),
-                                                        size: 28,
+                                                            color:
+                                                                _getWeatherIconColor(
+                                                                  dCode,
+                                                                  isNight:
+                                                                      false,
+                                                                ),
+                                                            size: 28,
+                                                          ),
+                                                        ),
                                                       ),
                                                       SizedBox(
                                                         width: 50,

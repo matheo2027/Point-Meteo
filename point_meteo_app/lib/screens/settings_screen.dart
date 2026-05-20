@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../main.dart';
+import '../services/favorite_weather_widget_service.dart';
 import 'home_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -12,6 +13,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _isDarkMode = false;
+  String _widgetSourceMode = FavoriteWeatherWidgetService.widgetSourceFavorite;
 
   @override
   void initState() {
@@ -23,7 +25,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _isDarkMode = prefs.getBool('isDarkMode') ?? false;
+      _widgetSourceMode =
+          prefs.getString(FavoriteWeatherWidgetService.widgetSourceModeKey) ??
+          FavoriteWeatherWidgetService.widgetSourceFavorite;
     });
+  }
+
+  Future<void> _setWidgetSourceMode(String value) async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _widgetSourceMode = value;
+    });
+    await prefs.setString(
+      FavoriteWeatherWidgetService.widgetSourceModeKey,
+      value,
+    );
+    await FavoriteWeatherWidgetService.setWidgetSourceMode(value);
   }
 
   Future<void> _toggleTheme(bool value) async {
@@ -68,10 +85,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             TextButton(
               onPressed: () async {
+                final messenger = ScaffoldMessenger.of(context);
                 Navigator.pop(context);
 
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.clear();
+                await FavoriteWeatherWidgetService.clearSnapshot();
 
                 setState(() {
                   _isDarkMode = false;
@@ -84,7 +103,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     !HomeScreen.forceResetNotifier.value;
 
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  messenger.showSnackBar(
                     const SnackBar(
                       content: Text("Application remise à zéro 🧹"),
                     ),
@@ -234,6 +253,59 @@ class _SettingsScreenState extends State<SettingsScreen> {
             value: _isDarkMode,
             onChanged: _toggleTheme,
             activeThumbColor: Colors.blueAccent,
+          ),
+
+          const Divider(height: 40),
+
+          Padding(
+            padding: const EdgeInsets.only(left: 20, bottom: 10),
+            child: Text(
+              "WIDGET",
+              style: TextStyle(
+                color: isDark ? Colors.blueAccent : Colors.blue.shade900,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                letterSpacing: 1.5,
+              ),
+            ),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: DropdownButtonFormField<String>(
+              initialValue: _widgetSourceMode,
+              decoration: const InputDecoration(
+                labelText: "Source du widget",
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: FavoriteWeatherWidgetService.widgetSourceFavorite,
+                  child: Row(
+                    children: [
+                      Icon(Icons.favorite, size: 18),
+                      SizedBox(width: 10),
+                      Text("Ville favorite"),
+                    ],
+                  ),
+                ),
+                DropdownMenuItem(
+                  value: FavoriteWeatherWidgetService.widgetSourceLocation,
+                  child: Row(
+                    children: [
+                      Icon(Icons.my_location, size: 18),
+                      SizedBox(width: 10),
+                      Text("Ma localisation"),
+                    ],
+                  ),
+                ),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  _setWidgetSourceMode(value);
+                }
+              },
+            ),
           ),
 
           const Divider(height: 40),

@@ -142,6 +142,18 @@ class _MapScreenState extends State<MapScreen> {
     return Colors.white70;
   }
 
+  String _describeWeatherCode(int weatherCode) {
+    if (weatherCode == 0) return 'ensoleillé';
+    if (weatherCode == 1 || weatherCode == 2) return 'partiellement nuageux';
+    if (weatherCode == 3) return 'nuageux';
+    if (weatherCode == 45 || weatherCode == 48) return 'brouillard';
+    if (weatherCode >= 51 && weatherCode <= 67) return 'pluie';
+    if (weatherCode >= 71 && weatherCode <= 77) return 'neige';
+    if (weatherCode >= 80 && weatherCode <= 82) return 'averses';
+    if (weatherCode >= 95 && weatherCode <= 99) return 'orage';
+    return 'conditions météo inconnues';
+  }
+
   String _formatHourLabel(String timeValue) {
     try {
       final dateTime = DateTime.parse(timeValue.replaceFirst(' ', 'T'));
@@ -358,45 +370,53 @@ class _MapScreenState extends State<MapScreen> {
     final code = _asInt(hourData['weathercode'] ?? hourData['code_meteo']);
     final temp = hourData['temp']?.toString() ?? '--';
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.78),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
-            boxShadow: const [
-              BoxShadow(
-                color: Colors.black26,
-                blurRadius: 10,
-                offset: Offset(0, 6),
+    return Semantics(
+      label: 'Repère météo ${_describeWeatherCode(code)}, $temp degrés',
+      image: true,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ExcludeSemantics(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.78),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 10,
+                    offset: Offset(0, 6),
+                  ),
+                ],
               ),
-            ],
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _getWeatherIcon(code),
+                    color: _getWeatherIconColor(code),
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '$temp°',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                _getWeatherIcon(code),
-                color: _getWeatherIconColor(code),
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '$temp°',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
-                ),
-              ),
-            ],
+          const ExcludeSemantics(
+            child: Icon(Icons.location_pin, color: Colors.redAccent, size: 42),
           ),
-        ),
-        const Icon(Icons.location_pin, color: Colors.redAccent, size: 42),
-      ],
+        ],
+      ),
     );
   }
 
@@ -786,10 +806,16 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
           if (_isInitializing)
-            const Positioned.fill(
+            Positioned.fill(
               child: ColoredBox(
                 color: Color(0x66000000),
-                child: Center(child: CircularProgressIndicator()),
+                child: Center(
+                  child: Semantics(
+                    label: 'Chargement de la carte',
+                    liveRegion: true,
+                    child: ExcludeSemantics(child: CircularProgressIndicator()),
+                  ),
+                ),
               ),
             ),
           if (_isFetchingForecast && !_isInitializing)
@@ -800,29 +826,35 @@ class _MapScreenState extends State<MapScreen> {
               child: SafeArea(
                 child: Material(
                   color: Colors.transparent,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.55),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                        SizedBox(width: 10),
-                        Text(
-                          'Mise à jour des données...',
-                          style: TextStyle(color: Colors.white),
-                        ),
-                      ],
+                  child: Semantics(
+                    label: 'Mise à jour des données en cours',
+                    liveRegion: true,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.55),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ExcludeSemantics(
+                            child: SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                          SizedBox(width: 10),
+                          Text(
+                            'Mise à jour des données...',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
