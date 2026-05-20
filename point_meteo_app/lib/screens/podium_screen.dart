@@ -62,6 +62,12 @@ class _PodiumScreenState extends State<PodiumScreen> {
     return Colors.grey;
   }
 
+  String _trendDescription(double delta) {
+    if (delta > 0.1) return 'amélioration';
+    if (delta < -0.1) return 'dégradation';
+    return 'stable';
+  }
+
   @override
   Widget build(BuildContext context) {
     final String cityName =
@@ -187,9 +193,16 @@ class _PodiumScreenState extends State<PodiumScreen> {
                       child: ListTile(
                         leading: CircleAvatar(child: Text("${index + 1}")),
                         title: Text(s['source'].toString()),
-                        subtitle: LinearProgressIndicator(
-                          value: (score / 100).clamp(0.0, 1.0),
-                          color: Colors.green,
+                        subtitle: Semantics(
+                          label:
+                              'Score ${score.toStringAsFixed(1)} pour cent, ${_trendDescription(trendDelta)} de ${trendDelta.toStringAsFixed(1)}',
+                          value: '${score.toStringAsFixed(1)} pour cent',
+                          child: ExcludeSemantics(
+                            child: LinearProgressIndicator(
+                              value: (score / 100).clamp(0.0, 1.0),
+                              color: Colors.green,
+                            ),
+                          ),
                         ),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -201,10 +214,16 @@ class _PodiumScreenState extends State<PodiumScreen> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            Icon(
-                              _trendIcon(trendDelta),
-                              color: trendColor,
-                              size: 18,
+                            Semantics(
+                              label:
+                                  'Tendance ${_trendDescription(trendDelta)}',
+                              child: ExcludeSemantics(
+                                child: Icon(
+                                  _trendIcon(trendDelta),
+                                  color: trendColor,
+                                  size: 18,
+                                ),
+                              ),
                             ),
                             const SizedBox(width: 2),
                             Text(

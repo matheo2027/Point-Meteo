@@ -26,33 +26,37 @@ class LoadingSkeletonView extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       itemCount: itemCount,
       itemBuilder: (context, index) {
-        return Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.06)
-                    : Colors.white.withValues(alpha: 0.8),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.08)
-                      : Colors.black.withValues(alpha: 0.05),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  skeletonBlock(height: 18, width: 140),
-                  const SizedBox(height: 10),
-                  skeletonBlock(height: 12),
-                  const SizedBox(height: 8),
-                  skeletonBlock(height: 12, width: 220),
-                ],
-              ),
-            )
-            .animate(onPlay: (controller) => controller.repeat())
-            .shimmer(duration: 1300.ms);
+        return Semantics(
+          label: 'Chargement en cours',
+          child:
+              Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.06)
+                          : Colors.white.withValues(alpha: 0.8),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.08)
+                            : Colors.black.withValues(alpha: 0.05),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        skeletonBlock(height: 18, width: 140),
+                        const SizedBox(height: 10),
+                        skeletonBlock(height: 12),
+                        const SizedBox(height: 8),
+                        skeletonBlock(height: 12, width: 220),
+                      ],
+                    ),
+                  )
+                  .animate(onPlay: (controller) => controller.repeat())
+                  .shimmer(duration: 1300.ms),
+        );
       },
     );
   }
@@ -94,10 +98,16 @@ class ErrorStateView extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
-                Icons.error_outline,
-                size: 52,
-                color: Colors.redAccent,
+              Semantics(
+                label: 'Etat d erreur',
+                image: true,
+                child: const ExcludeSemantics(
+                  child: Icon(
+                    Icons.error_outline,
+                    size: 52,
+                    color: Colors.redAccent,
+                  ),
+                ),
               ),
               const SizedBox(height: 12),
               Text(

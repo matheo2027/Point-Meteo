@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:home_widget/home_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/home_screen.dart';
 import 'screens/map_screen.dart';
@@ -21,6 +22,8 @@ void main() async {
 
   final is24Hour = prefs.getBool('is24Hour') ?? true;
   is24HourNotifier.value = is24Hour;
+
+  await HomeWidget.setAppGroupId('group.com.example.pointmeteo');
 
   runApp(const PointMeteoApp());
 }
