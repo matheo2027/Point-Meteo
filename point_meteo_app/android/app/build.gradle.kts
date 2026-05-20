@@ -42,3 +42,14 @@ android {
 flutter {
     source = "../.."
 }
+
+// --- CORRECTIF : FORÇAGE DES VERSIONS STABLES ---
+// Cette règle empêche Gradle de télécharger automatiquement les versions "Alpha" 
+// (qui exigent l'API 37) lors de la résolution des dépendances transitives.
+configurations.all {
+    resolutionStrategy {
+        force("androidx.glance:glance-appwidget:1.1.0")
+        force("androidx.glance:glance:1.1.0")
+        force("androidx.glance:glance-material3:1.1.0")
+    }
+}
