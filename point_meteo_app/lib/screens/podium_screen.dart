@@ -144,18 +144,15 @@ class _PodiumScreenState extends State<PodiumScreen> {
                 if (snapshot.hasError) {
                   final error = snapshot.error;
                   final bool backendDown = error is BackendUnavailableException;
+                  if (backendDown) {
+                    return ServerUnavailableStateView(
+                      onRetry: () => setState(_refreshScores),
+                    );
+                  }
                   return ErrorStateView(
-                    title: backendDown
-                        ? 'Serveur indisponible'
-                        : 'Erreur de chargement',
-                    message: backendDown
-                        ? error.toString()
-                        : 'Impossible de recuperer les scores.',
-                    onRetry: () {
-                      setState(() {
-                        _refreshScores();
-                      });
-                    },
+                    title: 'Erreur de chargement',
+                    message: 'Impossible de récupérer les scores.',
+                    onRetry: () => setState(_refreshScores),
                   );
                 }
 
@@ -191,8 +188,14 @@ class _PodiumScreenState extends State<PodiumScreen> {
                     return Card(
                       margin: const EdgeInsets.all(10),
                       child: ListTile(
-                        leading: CircleAvatar(child: Text("${index + 1}")),
-                        title: Text(s['source'].toString()),
+                        leading: Semantics(
+                          label: 'Position ${index + 1} au classement',
+                          child: CircleAvatar(child: ExcludeSemantics(child: Text("${index + 1}"))),
+                        ),
+                        title: Semantics(
+                          label: 'Fournisseur : ${s['source']}',
+                          child: Text(s['source'].toString()),
+                        ),
                         subtitle: Semantics(
                           label:
                               'Score ${score.toStringAsFixed(1)} pour cent, ${_trendDescription(trendDelta)} de ${trendDelta.toStringAsFixed(1)}',
@@ -207,10 +210,15 @@ class _PodiumScreenState extends State<PodiumScreen> {
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                              "${score.toStringAsFixed(1)}%",
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
+                            Semantics(
+                              label: 'Score de fiabilité : ${score.toStringAsFixed(1)} pour cent',
+                              child: ExcludeSemantics(
+                                child: Text(
+                                  "${score.toStringAsFixed(1)}%",
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ),
                             ),
                             const SizedBox(width: 8),

@@ -62,6 +62,83 @@ class LoadingSkeletonView extends StatelessWidget {
   }
 }
 
+class ServerUnavailableStateView extends StatelessWidget {
+  final VoidCallback? onRetry;
+  const ServerUnavailableStateView({super.key, this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Semantics(
+          label: 'Serveur météo indisponible',
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : Colors.white.withValues(alpha: 0.9),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: isDark
+                    ? Colors.orangeAccent.withValues(alpha: 0.3)
+                    : Colors.orange.withValues(alpha: 0.2),
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const ExcludeSemantics(
+                  child: Icon(
+                    Icons.cloud_off_rounded,
+                    size: 56,
+                    color: Colors.orangeAccent,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  'Serveur indisponible',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Le serveur météo est momentanément indisponible.\nRéessaie dans quelques instants.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDark ? Colors.white70 : Colors.black54,
+                  ),
+                ),
+                if (onRetry != null) ...[
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: onRetry,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Réessayer'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.orangeAccent,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class ErrorStateView extends StatelessWidget {
   final String title;
   final String message;
@@ -99,7 +176,7 @@ class ErrorStateView extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Semantics(
-                label: 'Etat d erreur',
+                label: "État d'erreur",
                 image: true,
                 child: const ExcludeSemantics(
                   child: Icon(

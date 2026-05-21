@@ -39,6 +39,7 @@ class _MapScreenState extends State<MapScreen> {
   bool _isControlsExpanded = true;
   bool _isTimelineExpanded = true;
   String? _errorMessage;
+  bool _isBackendUnavailable = false;
 
   @override
   void dispose() {
@@ -201,6 +202,7 @@ class _MapScreenState extends State<MapScreen> {
     setState(() {
       _isInitializing = true;
       _errorMessage = null;
+      _isBackendUnavailable = false;
     });
 
     try {
@@ -223,10 +225,11 @@ class _MapScreenState extends State<MapScreen> {
         _selectedHourIndex = _findCurrentHourIndex(forecast);
         _isInitializing = false;
       });
-    } on BackendUnavailableException catch (e) {
+    } on BackendUnavailableException {
       if (!mounted) return;
       setState(() {
-        _errorMessage = e.toString();
+        _isBackendUnavailable = true;
+        _errorMessage = null;
         _isInitializing = false;
       });
     } catch (e) {
@@ -245,6 +248,7 @@ class _MapScreenState extends State<MapScreen> {
     setState(() {
       _isSearchingCity = true;
       _errorMessage = null;
+      _isBackendUnavailable = false;
     });
 
     try {
@@ -264,10 +268,11 @@ class _MapScreenState extends State<MapScreen> {
         _hourlyForecast = forecast;
         _selectedHourIndex = _findCurrentHourIndex(forecast);
       });
-    } on BackendUnavailableException catch (e) {
+    } on BackendUnavailableException {
       if (!mounted) return;
       setState(() {
-        _errorMessage = e.toString();
+        _isBackendUnavailable = true;
+        _errorMessage = null;
       });
     } catch (e) {
       if (!mounted) return;
@@ -328,6 +333,7 @@ class _MapScreenState extends State<MapScreen> {
     setState(() {
       _isFetchingForecast = true;
       _errorMessage = null;
+      _isBackendUnavailable = false;
     });
 
     try {
@@ -337,10 +343,11 @@ class _MapScreenState extends State<MapScreen> {
         _hourlyForecast = forecast;
         _selectedHourIndex = _findCurrentHourIndex(forecast);
       });
-    } on BackendUnavailableException catch (e) {
+    } on BackendUnavailableException {
       if (!mounted) return;
       setState(() {
-        _errorMessage = e.toString();
+        _isBackendUnavailable = true;
+        _errorMessage = null;
       });
     } catch (e) {
       if (!mounted) return;
@@ -860,18 +867,20 @@ class _MapScreenState extends State<MapScreen> {
                 ),
               ),
             ),
-          if (_errorMessage != null)
+          if (_isBackendUnavailable || _errorMessage != null)
             Positioned.fill(
               child: Container(
                 color: Colors.black.withValues(alpha: 0.35),
                 child: Center(
                   child: Padding(
                     padding: const EdgeInsets.all(20),
-                    child: ErrorStateView(
-                      title: 'Carte indisponible',
-                      message: _errorMessage!,
-                      onRetry: _retry,
-                    ),
+                    child: _isBackendUnavailable
+                        ? ServerUnavailableStateView(onRetry: _retry)
+                        : ErrorStateView(
+                            title: 'Carte indisponible',
+                            message: _errorMessage!,
+                            onRetry: _retry,
+                          ),
                   ),
                 ),
               ),

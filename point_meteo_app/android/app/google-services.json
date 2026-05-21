@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1061820774452",
+    "project_id": "point-meteo",
+    "storage_bucket": "point-meteo.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1061820774452:android:dbc19af095cce248243261",
+        "android_client_info": {
+          "package_name": "com.example.pointmeteo"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB7C4yXdj8e9trSKL034gZlNEft1kYSjIY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

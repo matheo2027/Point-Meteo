@@ -11,6 +11,9 @@ const {
     cleanupLegacyRealData
 } = require('./weatherService');
 const { execFile } = require('child_process');
+const fs = require('fs');
+const cron = require('node-cron');
+const admin = require('firebase-admin');
 
 const app = express();
 app.use(express.json());
@@ -805,6 +808,189 @@ app.post('/api/trigger-forecast-refresh', async (req, res) => {
         res.status(500).json({ error: errorMessage });
     }
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SMART ALERTS — Firebase FCM + CRON
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ALERTS_DATA_FILE = path.join(__dirname, 'smart_alerts_devices.json');
+const ALERTS_COOLDOWN_MS = parseInt(process.env.ALERT_COOLDOWN_SECONDS || '10800', 10) * 1000;
+const ALERTS_CRON_SCHEDULE = process.env.ALERT_CRON_SCHEDULE || '*/30 * * * *';
+
+// ── Firebase Admin init ──────────────────────────────────────────────────────
+
+let firebaseReady = false;
+try {
+    const saPath = path.resolve(process.env.FIREBASE_SERVICE_ACCOUNT_PATH || './firebase-service-account.json');
+    if (fs.existsSync(saPath)) {
+        const serviceAccount = JSON.parse(fs.readFileSync(saPath, 'utf8'));
+        admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+        firebaseReady = true;
+        console.log('✅ Firebase Admin (Smart Alerts) initialisé');
+    } else {
+        console.warn('⚠️  firebase-service-account.json introuvable — notifications désactivées');
+    }
+} catch (e) {
+    console.warn('⚠️  Firebase Admin init échoué :', e.message);
+}
+
+// ── Stockage des appareils (JSON) ────────────────────────────────────────────
+
+function loadAlertDevices() {
+    if (!fs.existsSync(ALERTS_DATA_FILE)) return {};
+    try { return JSON.parse(fs.readFileSync(ALERTS_DATA_FILE, 'utf8')); } catch (_) { return {}; }
+}
+function saveAlertDevices(devices) {
+    fs.writeFileSync(ALERTS_DATA_FILE, JSON.stringify(devices, null, 2));
+}
+
+// ── Routes Smart Alerts ──────────────────────────────────────────────────────
+
+app.post('/devices/register', (req, res) => {
+    const { fcmToken, rules } = req.body;
+    if (!fcmToken || !Array.isArray(rules)) {
+        return res.status(400).json({ error: 'fcmToken et rules requis' });
+    }
+    const devices = loadAlertDevices();
+    const existing = Object.values(devices).find(d => d.fcmToken === fcmToken);
+    const deviceId = existing?.id || `dev_${Date.now()}`;
+    devices[deviceId] = {
+        id: deviceId,
+        fcmToken,
+        rules,
+        updatedAt: new Date().toISOString(),
+        lastAlerts: existing?.lastAlerts || {},
+    };
+    saveAlertDevices(devices);
+    console.log(`📱 Appareil ${deviceId} enregistré avec ${rules.length} règle(s)`);
+    res.json({ deviceId });
+});
+
+app.delete('/devices/:deviceId', (req, res) => {
+    const devices = loadAlertDevices();
+    delete devices[req.params.deviceId];
+    saveAlertDevices(devices);
+    res.json({ success: true });
+});
+
+// ── Logique de vérification météo ────────────────────────────────────────────
+
+const RAIN_CODES = [51,53,55,56,57,61,63,65,66,67,71,73,75,77,80,81,82,85,86,95,96,99];
+
+async function getWeatherForCity(cityName) {
+    try {
+        const searchRes = await axios.get(
+            `http://localhost:${process.env.PORT || 3000}/search/${encodeURIComponent(cityName)}`,
+            { timeout: 8000 }
+        );
+        const cityId = searchRes.data?.id;
+        if (!cityId) return null;
+        const weatherRes = await axios.get(
+            `http://localhost:${process.env.PORT || 3000}/weather/${cityId}`,
+            { timeout: 8000 }
+        );
+        const data = weatherRes.data;
+        return Array.isArray(data) && data.length > 0 ? data[0] : null;
+    } catch (e) {
+        console.warn(`⚠️  Météo indisponible pour "${cityName}": ${e.message}`);
+        return null;
+    }
+}
+
+function checkAlertCondition(rule, weather) {
+    if (!weather) return null;
+    const temp = weather.temp ?? weather.temperature ?? null;
+    const windSpeed = weather.wind_speed ?? weather.windspeed ?? weather.vent ?? null;
+    const weatherCode = Number(weather.weathercode ?? weather.code_meteo ?? 0);
+    const hasRain = RAIN_CODES.includes(weatherCode);
+
+    switch (rule.type) {
+        case 'rain':
+            if (hasRain) return {
+                title: `🌧️ Pluie à ${rule.cityName}`,
+                body: `De la pluie est prévue dans les ${rule.hoursAhead}h — Pense à ton parapluie !`,
+            };
+            break;
+        case 'tempBelow':
+            if (temp !== null && temp < rule.threshold) return {
+                title: `🥶 ${rule.cityName} : température basse`,
+                body: `Il fait ${Math.round(temp)}°C — sous ton seuil de ${Math.round(rule.threshold)}°C`,
+            };
+            break;
+        case 'tempAbove':
+            if (temp !== null && temp > rule.threshold) return {
+                title: `🌡️ ${rule.cityName} : températures élevées`,
+                body: `Il fait ${Math.round(temp)}°C — au-dessus de ton seuil de ${Math.round(rule.threshold)}°C`,
+            };
+            break;
+        case 'wind':
+            if (windSpeed !== null && windSpeed > rule.threshold) return {
+                title: `💨 ${rule.cityName} : vent fort`,
+                body: `Vent à ${Math.round(windSpeed)} km/h — dépasse ton seuil de ${Math.round(rule.threshold)} km/h`,
+            };
+            break;
+    }
+    return null;
+}
+
+async function sendFcmNotification(fcmToken, title, body) {
+    if (!firebaseReady) {
+        console.log(`[DRY-RUN] → ${title} | ${body}`);
+        return;
+    }
+    try {
+        await admin.messaging().send({
+            token: fcmToken,
+            notification: { title, body },
+            android: { notification: { channelId: 'point_meteo_alerts', priority: 'high' } },
+            apns: { payload: { aps: { alert: { title, body }, badge: 1, sound: 'default', 'content-available': 1 } } },
+        });
+        console.log(`✉️  Notification envoyée : ${title}`);
+    } catch (e) {
+        console.error(`❌ Erreur FCM : ${e.message}`);
+    }
+}
+
+// ── CRON job ─────────────────────────────────────────────────────────────────
+
+async function runAlertCheck() {
+    const devices = loadAlertDevices();
+    const deviceList = Object.values(devices);
+    if (deviceList.length === 0) return;
+
+    console.log(`[Smart Alerts] Vérification de ${deviceList.length} appareil(s)...`);
+    const now = Date.now();
+    const cityCache = {};
+
+    for (const device of deviceList) {
+        for (const rule of device.rules || []) {
+            if (!rule.isEnabled) continue;
+            const ruleKey = `${device.id}_${rule.id}`;
+            if (now - (device.lastAlerts?.[ruleKey] ?? 0) < ALERTS_COOLDOWN_MS) continue;
+
+            const cityKey = rule.cityName.toLowerCase();
+            if (!cityCache[cityKey]) {
+                cityCache[cityKey] = await getWeatherForCity(rule.cityName);
+            }
+            const result = checkAlertCondition(rule, cityCache[cityKey]);
+            if (result) {
+                await sendFcmNotification(device.fcmToken, result.title, result.body);
+                device.lastAlerts = device.lastAlerts || {};
+                device.lastAlerts[ruleKey] = now;
+                devices[device.id] = device;
+            }
+        }
+    }
+    saveAlertDevices(devices);
+    console.log('[Smart Alerts] Vérification terminée');
+}
+
+cron.schedule(ALERTS_CRON_SCHEDULE, () => {
+    console.log(`\n[Smart Alerts] ${new Date().toISOString()} — Lancement vérification`);
+    runAlertCheck().catch(console.error);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 const port = process.env.PORT || 3000;
 app.listen(port, '0.0.0.0');

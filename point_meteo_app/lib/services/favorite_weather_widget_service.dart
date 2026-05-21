@@ -3,6 +3,7 @@ import 'package:home_widget/home_widget.dart';
 class FavoriteWeatherWidgetService {
   static const String androidProviderName =
       'com.example.point_meteo_app.FavoriteWeatherWidgetProvider';
+  static const String iosWidgetName = 'PointMeteoWidget';
 
   static const String widgetSourceModeKey = 'favorite_widget_source_mode';
   static const String widgetSourceFavorite = 'favorite';
@@ -22,7 +23,7 @@ class FavoriteWeatherWidgetService {
 
   static Future<void> setWidgetSourceMode(String sourceMode) async {
     await HomeWidget.saveWidgetData<String>(widgetSourceModeKey, sourceMode);
-    await HomeWidget.updateWidget(qualifiedAndroidName: androidProviderName);
+    await HomeWidget.updateWidget(qualifiedAndroidName: androidProviderName, iOSName: iosWidgetName);
   }
 
   static Future<String> getWidgetSourceMode() async {
@@ -43,7 +44,7 @@ class FavoriteWeatherWidgetService {
       HomeWidget.saveWidgetData<String>(sourceKey, sourceName),
       HomeWidget.saveWidgetData<String>(iconCodeKey, weatherCode.toString()),
       HomeWidget.saveWidgetData<String>(updatedAtKey, updatedAtLabel),
-      HomeWidget.updateWidget(qualifiedAndroidName: androidProviderName),
+      HomeWidget.updateWidget(qualifiedAndroidName: androidProviderName, iOSName: iosWidgetName),
     ]);
   }
 
@@ -63,7 +64,7 @@ class FavoriteWeatherWidgetService {
         weatherCode.toString(),
       ),
       HomeWidget.saveWidgetData<String>(locationUpdatedAtKey, updatedAtLabel),
-      HomeWidget.updateWidget(qualifiedAndroidName: androidProviderName),
+      HomeWidget.updateWidget(qualifiedAndroidName: androidProviderName, iOSName: iosWidgetName),
     ]);
   }
 
@@ -79,7 +80,7 @@ class FavoriteWeatherWidgetService {
       HomeWidget.saveWidgetData<String>(sourceKey, null),
       HomeWidget.saveWidgetData<String>(iconCodeKey, null),
       HomeWidget.saveWidgetData<String>(updatedAtKey, null),
-      HomeWidget.updateWidget(qualifiedAndroidName: androidProviderName),
+      HomeWidget.updateWidget(qualifiedAndroidName: androidProviderName, iOSName: iosWidgetName),
     ]);
   }
 
@@ -90,7 +91,7 @@ class FavoriteWeatherWidgetService {
       HomeWidget.saveWidgetData<String>(locationSourceKey, null),
       HomeWidget.saveWidgetData<String>(locationIconCodeKey, null),
       HomeWidget.saveWidgetData<String>(locationUpdatedAtKey, null),
-      HomeWidget.updateWidget(qualifiedAndroidName: androidProviderName),
+      HomeWidget.updateWidget(qualifiedAndroidName: androidProviderName, iOSName: iosWidgetName),
     ]);
   }
 
@@ -107,7 +108,7 @@ class FavoriteWeatherWidgetService {
       HomeWidget.saveWidgetData<String>(locationIconCodeKey, null),
       HomeWidget.saveWidgetData<String>(locationUpdatedAtKey, null),
       HomeWidget.saveWidgetData<String>(widgetSourceModeKey, null),
-      HomeWidget.updateWidget(qualifiedAndroidName: androidProviderName),
+      HomeWidget.updateWidget(qualifiedAndroidName: androidProviderName, iOSName: iosWidgetName),
     ]);
   }
 }
