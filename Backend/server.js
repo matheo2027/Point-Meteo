@@ -177,9 +177,13 @@ app.get('/search/:nom', async (req, res) => {
 
         if (result.rows.length > 0) {
             const villeExistante = result.rows[0];
-            // Vérifier si on a des données fraîches pour AUJOURD'HUI
+            // Vérifier si on a des données fraîches pour AUJOURD'HUI (moins de 6h)
             const checkData = await pool.query(
-                "SELECT id FROM donnees_meteo WHERE ville_id = $1 AND date_concernee::date = CURRENT_DATE LIMIT 1",
+                `SELECT id FROM donnees_meteo
+                 WHERE ville_id = $1
+                 AND date_concernee::date = CURRENT_DATE
+                 AND date_enregistrement > NOW() - INTERVAL '6 hours'
+                 LIMIT 1`,
                 [villeExistante.id]
             );
 
@@ -356,7 +360,11 @@ app.get('/search-coords', async (req, res) => {
         const villeId = await getOrCreateVille(cityName, lat, lon);
 
         const checkData = await pool.query(
-            "SELECT id FROM donnees_meteo WHERE ville_id = $1 AND date_concernee::date = CURRENT_DATE LIMIT 1",
+            `SELECT id FROM donnees_meteo
+             WHERE ville_id = $1
+             AND date_concernee::date = CURRENT_DATE
+             AND date_enregistrement > NOW() - INTERVAL '6 hours'
+             LIMIT 1`,
             [villeId]
         );
 
