@@ -36,6 +36,7 @@ class _HomeScreenState extends State<HomeScreen>
   bool _showAllApiRows = false;
   String? _notFoundQuery;
   String? _homeErrorMessage;
+  bool _isBackendUnavailable = false;
 
   bool _isFavorite = false;
   List<String> _favoriteCities = [];
@@ -53,6 +54,7 @@ class _HomeScreenState extends State<HomeScreen>
         _cityController.clear();
         _notFoundQuery = null;
         _homeErrorMessage = null;
+        _isBackendUnavailable = false;
         _apiComparisonRows = [];
         _showAllApiRows = false;
       });
@@ -195,6 +197,7 @@ class _HomeScreenState extends State<HomeScreen>
       _isFavorite = false;
       _notFoundQuery = null;
       _homeErrorMessage = null;
+      _isBackendUnavailable = false;
       _apiComparisonRows = [];
       _showAllApiRows = false;
     });
@@ -204,6 +207,7 @@ class _HomeScreenState extends State<HomeScreen>
     setState(() {
       _isLoading = true;
       _homeErrorMessage = null;
+      _isBackendUnavailable = false;
       _notFoundQuery = null;
     });
     try {
@@ -241,13 +245,14 @@ class _HomeScreenState extends State<HomeScreen>
       if (e is BackendUnavailableException) {
         setState(() {
           _isLoading = false;
-          _homeErrorMessage = e.toString();
+          _isBackendUnavailable = true;
+          _homeErrorMessage = null;
         });
         return;
       }
       setState(() {
         _isLoading = false;
-        _homeErrorMessage = "Geolocalisation impossible: $e";
+        _homeErrorMessage = "Géolocalisation impossible : $e";
       });
     }
   }
@@ -258,6 +263,7 @@ class _HomeScreenState extends State<HomeScreen>
       _isLoading = true;
       _notFoundQuery = null;
       _homeErrorMessage = null;
+      _isBackendUnavailable = false;
     });
 
     try {
@@ -291,6 +297,7 @@ class _HomeScreenState extends State<HomeScreen>
         _hourlyForecast = hourly;
         _notFoundQuery = null;
         _homeErrorMessage = null;
+        _isBackendUnavailable = false;
 
         Map<String, dynamic> uniqueDays = {};
         for (var w in weather) {
@@ -371,14 +378,15 @@ class _HomeScreenState extends State<HomeScreen>
       if (e is BackendUnavailableException) {
         setState(() {
           _isLoading = false;
-          _homeErrorMessage = e.toString();
+          _isBackendUnavailable = true;
+          _homeErrorMessage = null;
         });
         return;
       }
 
       setState(() {
         _isLoading = false;
-        _homeErrorMessage = "Erreur de recherche: $e";
+        _homeErrorMessage = "Erreur de recherche : $e";
       });
     }
   }
@@ -628,12 +636,17 @@ class _HomeScreenState extends State<HomeScreen>
                             hintStyle: TextStyle(
                               color: isDark ? Colors.white54 : Colors.black54,
                             ),
-                            prefixIcon: IconButton(
-                              icon: const Icon(
-                                Icons.my_location,
-                                color: Colors.blueAccent,
+                            prefixIcon: Semantics(
+                              label: 'Rechercher la météo pour ma position actuelle',
+                              button: true,
+                              child: IconButton(
+                                icon: const Icon(
+                                  Icons.my_location,
+                                  color: Colors.blueAccent,
+                                ),
+                                tooltip: 'Ma position',
+                                onPressed: _geolocaliserEtChercher,
                               ),
-                              onPressed: _geolocaliserEtChercher,
                             ),
                             suffixIcon: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -646,6 +659,7 @@ class _HomeScreenState extends State<HomeScreen>
                                           ? Colors.white70
                                           : Colors.grey,
                                     ),
+                                    tooltip: 'Effacer la recherche',
                                     onPressed: _clearSearch,
                                   ),
                                 IconButton(
@@ -653,6 +667,7 @@ class _HomeScreenState extends State<HomeScreen>
                                     Icons.search,
                                     color: Colors.blueAccent,
                                   ),
+                                  tooltip: 'Rechercher',
                                   onPressed: _rechercherLeMeilleur,
                                 ),
                               ],
@@ -762,58 +777,77 @@ class _HomeScreenState extends State<HomeScreen>
                                                     ),
                                                   ),
                                                   const SizedBox(width: 4),
-                                                  IconButton(
-                                                    constraints:
-                                                        const BoxConstraints(),
-                                                    padding:
-                                                        const EdgeInsets.all(4),
-                                                    icon: Icon(
-                                                      _isFavorite
-                                                          ? Icons.favorite
-                                                          : Icons
-                                                                .favorite_border,
-                                                      color: _isFavorite
-                                                          ? Colors.redAccent
-                                                          : Colors.white,
-                                                      size: 22,
+                                                  Semantics(
+                                                    label: _isFavorite
+                                                        ? 'Retirer des favoris'
+                                                        : 'Ajouter aux favoris',
+                                                    button: true,
+                                                    child: IconButton(
+                                                      constraints:
+                                                          const BoxConstraints(),
+                                                      padding:
+                                                          const EdgeInsets.all(4),
+                                                      icon: Icon(
+                                                        _isFavorite
+                                                            ? Icons.favorite
+                                                            : Icons
+                                                                  .favorite_border,
+                                                        color: _isFavorite
+                                                            ? Colors.redAccent
+                                                            : Colors.white,
+                                                        size: 22,
+                                                      ),
+                                                      tooltip: _isFavorite
+                                                          ? 'Retirer des favoris'
+                                                          : 'Ajouter aux favoris',
+                                                      onPressed: _toggleFavorite,
                                                     ),
-                                                    onPressed: _toggleFavorite,
                                                   ),
                                                 ],
                                               ),
                                               const SizedBox(height: 10),
-                                              Text(
-                                                "${_convertTemp(_bestWeather!['temp'], isCelsius)}°$unit",
-                                                style: const TextStyle(
-                                                  fontSize: 74,
-                                                  fontWeight: FontWeight.w900,
-                                                  height: 0.95,
-                                                  color: Colors.white,
+                                              Semantics(
+                                                label: 'Température actuelle : ${_convertTemp(_bestWeather!['temp'], isCelsius)} degrés $unit',
+                                                child: ExcludeSemantics(
+                                                  child: Text(
+                                                    "${_convertTemp(_bestWeather!['temp'], isCelsius)}°$unit",
+                                                    style: const TextStyle(
+                                                      fontSize: 74,
+                                                      fontWeight: FontWeight.w900,
+                                                      height: 0.95,
+                                                      color: Colors.white,
+                                                    ),
+                                                  ),
                                                 ),
                                               ),
                                               const SizedBox(height: 8),
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 10,
-                                                      vertical: 6,
+                                              Semantics(
+                                                label: 'Source météo la plus fiable : $_bestSourceName',
+                                                child: ExcludeSemantics(
+                                                  child: Container(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 10,
+                                                          vertical: 6,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.white
+                                                          .withValues(alpha: 0.14),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            999,
+                                                          ),
                                                     ),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.white
-                                                      .withValues(alpha: 0.14),
-                                                  borderRadius:
-                                                      BorderRadius.circular(
-                                                        999,
+                                                    child: Text(
+                                                      _bestSourceName!
+                                                          .toUpperCase(),
+                                                      style: const TextStyle(
+                                                        fontSize: 12,
+                                                        color: Colors.white70,
+                                                        letterSpacing: 1.8,
+                                                        fontWeight: FontWeight.w700,
                                                       ),
-                                                ),
-                                                child: Text(
-                                                  _bestSourceName!
-                                                      .toUpperCase(),
-                                                  style: const TextStyle(
-                                                    fontSize: 12,
-                                                    color: Colors.white70,
-                                                    letterSpacing: 1.8,
-                                                    fontWeight: FontWeight.w700,
+                                                    ),
                                                   ),
                                                 ),
                                               ),
@@ -972,13 +1006,18 @@ class _HomeScreenState extends State<HomeScreen>
                                                       const SizedBox(
                                                         height: 10,
                                                       ),
-                                                      Text(
-                                                        "${_convertTemp(hourData['temp'], isCelsius)}°$unit",
-                                                        style: const TextStyle(
-                                                          color: Colors.white,
-                                                          fontWeight:
-                                                              FontWeight.bold,
-                                                          fontSize: 16,
+                                                      Semantics(
+                                                        label: 'Température prévue : ${_convertTemp(hourData['temp'], isCelsius)} degrés $unit',
+                                                        child: ExcludeSemantics(
+                                                          child: Text(
+                                                            "${_convertTemp(hourData['temp'], isCelsius)}°$unit",
+                                                            style: const TextStyle(
+                                                              color: Colors.white,
+                                                              fontWeight:
+                                                                  FontWeight.bold,
+                                                              fontSize: 16,
+                                                            ),
+                                                          ),
                                                         ),
                                                       ),
                                                     ],
@@ -1276,10 +1315,18 @@ class _HomeScreenState extends State<HomeScreen>
                               onTryAgain: _rechercherLeMeilleur,
                             ),
                           )
+                        else if (!_isLoading && _isBackendUnavailable)
+                          Expanded(
+                            child: ServerUnavailableStateView(
+                              onRetry: _cityController.text.trim().isNotEmpty
+                                  ? _rechercherLeMeilleur
+                                  : _geolocaliserEtChercher,
+                            ),
+                          )
                         else if (!_isLoading && _homeErrorMessage != null)
                           Expanded(
                             child: ErrorStateView(
-                              title: 'Erreur de chargement',
+                              title: 'Erreur',
                               message: _homeErrorMessage!,
                               onRetry: _cityController.text.trim().isNotEmpty
                                   ? _rechercherLeMeilleur
@@ -1471,12 +1518,12 @@ class _HomeScreenState extends State<HomeScreen>
                                                                           vertical:
                                                                               5,
                                                                         ),
-                                                                    leading: const Icon(
-                                                                      Icons
-                                                                          .star,
-                                                                      color: Colors
-                                                                          .orangeAccent,
-                                                                      size: 30,
+                                                                    leading: ExcludeSemantics(
+                                                                      child: const Icon(
+                                                                        Icons.star,
+                                                                        color: Colors.orangeAccent,
+                                                                        size: 30,
+                                                                      ),
                                                                     ),
                                                                     title: Text(
                                                                       city.toUpperCase(),
@@ -1493,17 +1540,14 @@ class _HomeScreenState extends State<HomeScreen>
                                                                     ),
                                                                     trailing: IconButton(
                                                                       icon: Icon(
-                                                                        Icons
-                                                                            .delete_outline,
-                                                                        color:
-                                                                            isDark
+                                                                        Icons.delete_outline,
+                                                                        color: isDark
                                                                             ? Colors.white54
                                                                             : Colors.grey,
                                                                       ),
+                                                                      tooltip: 'Retirer $city des favoris',
                                                                       onPressed: () =>
-                                                                          _removeFavoriteFromList(
-                                                                            city,
-                                                                          ),
+                                                                          _removeFavoriteFromList(city),
                                                                     ),
                                                                     onTap: () {
                                                                       _cityController

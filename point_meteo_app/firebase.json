@@ -1,0 +1,1 @@
+{"flutter":{"platforms":{"android":{"default":{"projectId":"point-meteo","appId":"1:1061820774452:android:dbc19af095cce248243261","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"point-meteo","configurations":{"android":"1:1061820774452:android:dbc19af095cce248243261","ios":"1:1061820774452:ios:04cbdbe2533e3298243261"}}}}}}

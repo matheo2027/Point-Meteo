@@ -1,10 +1,15 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'screens/home_screen.dart';
 import 'screens/map_screen.dart';
 import 'screens/podium_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/alerts_screen.dart';
+import 'services/notification_service.dart';
 
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.light);
 final ValueNotifier<bool> isCelsiusNotifier = ValueNotifier(true);
@@ -23,7 +28,19 @@ void main() async {
   final is24Hour = prefs.getBool('is24Hour') ?? true;
   is24HourNotifier.value = is24Hour;
 
-  await HomeWidget.setAppGroupId('group.com.example.pointmeteo');
+  // HomeWidget ne supporte pas le web
+  if (!kIsWeb) {
+    await HomeWidget.setAppGroupId('group.com.example.pointmeteo');
+  }
+
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    await NotificationService.initialize();
+  } catch (e) {
+    debugPrint('Firebase non configuré: $e');
+  }
 
   runApp(const PointMeteoApp());
 }
@@ -66,6 +83,7 @@ class _MainNavigationState extends State<MainNavigation> {
     const HomeScreen(),
     const MapScreen(),
     const PodiumScreen(),
+    const AlertsScreen(),
     const SettingsScreen(),
   ];
 
@@ -86,18 +104,22 @@ class _MainNavigationState extends State<MainNavigation> {
         unselectedItemColor: Colors.white70,
         showUnselectedLabels: true,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.wb_sunny), label: "Météo"),
+          BottomNavigationBarItem(icon: Icon(Icons.wb_sunny), label: 'Météo'),
           BottomNavigationBarItem(
             icon: Icon(Icons.map_outlined),
-            label: "Carte",
+            label: 'Carte',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.leaderboard),
-            label: "Podium",
+            label: 'Podium',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.notifications_active),
+            label: 'Alertes',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.settings),
-            label: "Settings",
+            label: 'Settings',
           ),
         ],
       ),

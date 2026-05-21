@@ -278,25 +278,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 labelText: "Source du widget",
                 border: OutlineInputBorder(),
               ),
-              items: const [
+              items: [
                 DropdownMenuItem(
                   value: FavoriteWeatherWidgetService.widgetSourceFavorite,
-                  child: Row(
-                    children: [
-                      Icon(Icons.favorite, size: 18),
-                      SizedBox(width: 10),
-                      Text("Ville favorite"),
-                    ],
+                  child: Semantics(
+                    label: 'Source du widget : ville favorite',
+                    child: Row(
+                      children: [
+                        ExcludeSemantics(child: const Icon(Icons.favorite, size: 18)),
+                        const SizedBox(width: 10),
+                        const Text("Ville favorite"),
+                      ],
+                    ),
                   ),
                 ),
                 DropdownMenuItem(
                   value: FavoriteWeatherWidgetService.widgetSourceLocation,
-                  child: Row(
-                    children: [
-                      Icon(Icons.my_location, size: 18),
-                      SizedBox(width: 10),
-                      Text("Ma localisation"),
-                    ],
+                  child: Semantics(
+                    label: 'Source du widget : ma localisation',
+                    child: Row(
+                      children: [
+                        ExcludeSemantics(child: const Icon(Icons.my_location, size: 18)),
+                        const SizedBox(width: 10),
+                        const Text("Ma localisation"),
+                      ],
+                    ),
                   ),
                 ),
               ],

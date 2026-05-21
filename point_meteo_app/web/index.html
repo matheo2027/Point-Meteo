@@ -29,10 +29,18 @@
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>point_meteo_app</title>
+  <title>Point Météo</title>
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+  <script>
+    // Enregistrement du service worker Firebase Messaging
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/firebase-messaging-sw.js')
+        .then(reg => console.log('SW FCM enregistré:', reg.scope))
+        .catch(err => console.warn('SW FCM non enregistré:', err));
+    }
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

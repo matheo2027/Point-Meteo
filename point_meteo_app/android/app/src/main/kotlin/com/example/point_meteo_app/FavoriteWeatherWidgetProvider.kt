@@ -80,6 +80,15 @@ class FavoriteWeatherWidgetProvider : HomeWidgetProvider() {
     }
   }
 
+  private data class Snapshot(
+    val cityName: String?,
+    val temperature: String?,
+    val source: String?,
+    val weatherCode: String?,
+    val updatedAt: String?,
+    val defaultTitle: String,
+  )
+
   private companion object {
     const val WIDGET_SOURCE_MODE_KEY = "favorite_widget_source_mode"
     const val WIDGET_SOURCE_FAVORITE = "favorite"
@@ -98,12 +107,3 @@ class FavoriteWeatherWidgetProvider : HomeWidgetProvider() {
     const val LOCATION_UPDATED_AT_KEY = "location_widget_updated_at"
   }
 }
-
-  private data class Snapshot(
-    val cityName: String?,
-    val temperature: String?,
-    val source: String?,
-    val weatherCode: String?,
-    val updatedAt: String?,
-    val defaultTitle: String,
-  )

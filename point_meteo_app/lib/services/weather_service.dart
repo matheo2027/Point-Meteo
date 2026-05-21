@@ -39,10 +39,12 @@ class WeatherService {
         throw BackendUnavailableException();
       }
       return response;
-    } on TimeoutException catch (_) {
+    } on TimeoutException {
       throw BackendUnavailableException();
-    } on http.ClientException catch (_) {
+    } on http.ClientException {
       throw BackendUnavailableException();
+    } on BackendUnavailableException {
+      rethrow;
     } catch (_) {
       throw BackendUnavailableException();
     }
