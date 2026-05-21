@@ -91,10 +91,10 @@ class _HomeScreenState extends State<HomeScreen>
       return;
     }
 
-    final tempValue = _convertTemp(
-      _bestWeather!['temp'],
-      isCelsiusNotifier.value,
-    );
+    final rawTemp = _hourlyForecast.isNotEmpty
+        ? _hourlyForecast[0]['temp']
+        : _bestWeather!['temp'];
+    final tempValue = _convertTemp(rawTemp, isCelsiusNotifier.value);
     final unit = isCelsiusNotifier.value ? 'C' : 'F';
     final displayTemp = '$tempValue°$unit';
     final weatherCode = _asInt(
@@ -116,10 +116,10 @@ class _HomeScreenState extends State<HomeScreen>
       return;
     }
 
-    final tempValue = _convertTemp(
-      _bestWeather!['temp'],
-      isCelsiusNotifier.value,
-    );
+    final rawTemp = _hourlyForecast.isNotEmpty
+        ? _hourlyForecast[0]['temp']
+        : _bestWeather!['temp'];
+    final tempValue = _convertTemp(rawTemp, isCelsiusNotifier.value);
     final unit = isCelsiusNotifier.value ? 'C' : 'F';
     final displayTemp = '$tempValue°$unit';
     final weatherCode = _asInt(
@@ -807,10 +807,10 @@ class _HomeScreenState extends State<HomeScreen>
                                               ),
                                               const SizedBox(height: 10),
                                               Semantics(
-                                                label: 'Température actuelle : ${_convertTemp(_bestWeather!['temp'], isCelsius)} degrés $unit',
+                                                label: 'Température actuelle : ${_convertTemp(_hourlyForecast.isNotEmpty ? _hourlyForecast[0]['temp'] : _bestWeather!['temp'], isCelsius)} degrés $unit',
                                                 child: ExcludeSemantics(
                                                   child: Text(
-                                                    "${_convertTemp(_bestWeather!['temp'], isCelsius)}°$unit",
+                                                    "${_convertTemp(_hourlyForecast.isNotEmpty ? _hourlyForecast[0]['temp'] : _bestWeather!['temp'], isCelsius)}°$unit",
                                                     style: const TextStyle(
                                                       fontSize: 74,
                                                       fontWeight: FontWeight.w900,
