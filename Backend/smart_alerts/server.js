@@ -264,11 +264,26 @@ async function runAlertCheck() {
   console.log('[CRON] Vérification terminée');
 }
 
+// ─── Endpoint de déclenchement manuel (test) ─────────────────────────────────
+
+app.post('/trigger-now', async (req, res) => {
+  console.log('[MANUAL] Déclenchement manuel de la vérification des alertes');
+  try {
+    await runAlertCheck();
+    res.json({ success: true, message: 'Vérification effectuée' });
+  } catch (e) {
+    console.error('[MANUAL] Erreur :', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // ─── Démarrage ────────────────────────────────────────────────────────────────
 
 app.listen(PORT, () => {
   console.log(`🚀 Smart Alerts server lancé sur le port ${PORT}`);
   console.log(`📅 CRON planifié : ${CRON_SCHEDULE}`);
+  console.log(`🔔 Cooldown entre alertes : ${COOLDOWN_MS / 1000}s`);
+  console.log(`⚡ Déclenchement manuel : POST /trigger-now`);
 });
 
 cron.schedule(CRON_SCHEDULE, () => {
